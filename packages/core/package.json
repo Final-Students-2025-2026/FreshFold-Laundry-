@@ -1,0 +1,19 @@
+{
+  "name": "@freshfold/core",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Domain model, status mapping and API client shared by the FreshFold web app, rider app and dispatch server.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "tsc --noEmit",
+    "check": "tsx src/random.check.ts && tsx src/payments.check.ts && tsx src/passwords.check.ts && tsx src/uploads.check.ts && tsx src/money.check.ts && tsx src/details.check.ts && tsx src/reschedule.check.ts && tsx src/operations.check.ts && tsx src/growth.check.ts && tsx src/client.check.ts"
+  },
+  "devDependencies": {
+    "tsx": "^4.21.0"
+  }
+}

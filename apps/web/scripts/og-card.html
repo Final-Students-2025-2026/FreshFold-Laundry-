@@ -1,0 +1,115 @@
+<!doctype html>
+<!--
+  The source of public/og.png — the card WhatsApp, Facebook, X, Slack and
+  iMessage draw when somebody pastes a FreshFold link.
+
+  It is HTML rather than a drawing so it can be re-rendered when the offer
+  changes: the price on this card is a promise, and a promise that has drifted
+  from the price list is worse than no card at all.
+
+    node scripts/og-image.mjs
+
+  1200x630 is the size every one of those services crops to. Nothing important
+  goes within 60px of an edge — Twitter and iMessage both trim.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=Cormorant+Garamond:wght@400;500;600&display=block"
+    />
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body {
+        width: 1200px;
+        height: 630px;
+        background: #0d0d0d;
+        color: #f5f5f4;
+        font-family: Archivo, sans-serif;
+        overflow: hidden;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 64px 72px;
+      }
+      /* The same three layers as the hero: photograph, flat scrim for the
+         contrast guarantee, gradient to sink the edges into the ground. */
+      .shot {
+        position: absolute;
+        inset: 0;
+        background-image: url('https://images.unsplash.com/photo-1524404794194-16bae22718c0?auto=format&fit=crop&q=80&w=1600');
+        background-size: cover;
+        background-position: center;
+        filter: saturate(0.72);
+      }
+      .scrim { position: absolute; inset: 0; background: rgba(13, 13, 13, 0.76); }
+      .fade {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(105deg, #0d0d0d 18%, rgba(13, 13, 13, 0.35) 62%, rgba(13, 13, 13, 0.8) 100%);
+      }
+      .layer { position: relative; }
+
+      .brand { display: flex; align-items: center; gap: 16px; }
+      .badge {
+        width: 60px; height: 60px; border-radius: 14px; background: #5a5a40;
+        display: grid; place-items: center;
+        font-size: 25px; font-weight: 700; font-stretch: 118%; color: #fff;
+      }
+      .name { font-size: 30px; font-weight: 600; letter-spacing: -0.02em; font-stretch: 108%; }
+
+      h1 {
+        font-family: 'Cormorant Garamond', Georgia, serif;
+        font-size: 104px; font-weight: 500; line-height: 0.98;
+        letter-spacing: -0.015em; max-width: 17ch; margin-bottom: 26px;
+      }
+      .lead { font-size: 27px; line-height: 1.45; color: rgba(255, 255, 255, 0.85); max-width: 30ch; }
+      .kicker {
+        font-size: 19px; font-weight: 500; text-transform: uppercase;
+        letter-spacing: 0.2em; color: #e2d1b9; margin-bottom: 30px;
+      }
+
+      .facts { display: flex; gap: 56px; border-top: 1px solid rgba(255, 255, 255, 0.22); padding-top: 26px; }
+      .fact-label { font-size: 17px; color: rgba(255, 255, 255, 0.72); margin-bottom: 7px; }
+      .fact-value {
+        font-size: 34px; font-weight: 600; letter-spacing: -0.02em;
+        font-variant-numeric: tabular-nums; font-stretch: 108%;
+      }
+      .gold { color: #c5a880; }
+    </style>
+  </head>
+  <body>
+    <div class="shot"></div>
+    <div class="scrim"></div>
+    <div class="fade"></div>
+
+    <div class="layer brand">
+      <div class="badge">FF</div>
+      <div class="name">FreshFold</div>
+    </div>
+
+    <div class="layer">
+      <p class="kicker">Kumasi · Free pickup &amp; delivery</p>
+      <h1>Laundry, collected and returned.</h1>
+      <p class="lead">We collect it, wash and press it properly, and bring it back the next day.</p>
+    </div>
+
+    <div class="layer facts">
+      <div>
+        <div class="fact-label">A wash</div>
+        <div class="fact-value gold">₵30</div>
+      </div>
+      <div>
+        <div class="fact-label">Back to you</div>
+        <div class="fact-value">Tomorrow</div>
+      </div>
+      <div>
+        <div class="fact-label">Pickup &amp; delivery</div>
+        <div class="fact-value">Free</div>
+      </div>
+    </div>
+  </body>
+</html>

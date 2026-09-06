@@ -1,0 +1,32 @@
+{
+  "name": "freshfold",
+  "version": "1.0.0",
+  "private": true,
+  "description": "FreshFold Laundry Co. — customer web app, rider companion app, and the shared dispatch backend they both talk to.",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,web -c cyan,magenta \"npm:dev:server\" \"npm:dev:web\"",
+    "dev:server": "npm run dev --workspace @freshfold/server",
+    "dev:web": "npm run dev --workspace @freshfold/web",
+    "web": "npm run dev:web",
+    "server": "npm run dev:server",
+    "mobile": "npm run start --workspace @freshfold/mobile",
+    "client": "npm run start --workspace @freshfold/client -- --port 8082",
+    "reset": "curl -X POST http://localhost:4000/api/reset",
+    "build": "npm run build --workspace @freshfold/web && npm run build --workspace @freshfold/server",
+    "start": "npm run start --workspace @freshfold/server",
+    "lint": "npm run lint --workspaces --if-present",
+    "check": "npm run check --workspaces --if-present",
+    "test": "npm run lint --workspaces --if-present && npm run check --workspaces --if-present"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "~5.9.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

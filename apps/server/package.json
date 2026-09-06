@@ -1,0 +1,33 @@
+{
+  "name": "@freshfold/server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "FreshFold dispatch server \u2014 the single source of truth shared by the customer website and the rider app.",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc --noEmit && esbuild src/index.ts --bundle --platform=node --target=node20 --format=esm --sourcemap --outfile=dist/server.mjs --external:express --external:cors --external:dotenv --external:postgres --external:@google/genai",
+    "start": "node dist/server.mjs",
+    "serve": "npm run build && node dist/server.mjs",
+    "db:migrate": "tsx src/migrate.ts",
+    "import:json": "tsx src/import-json.ts",
+    "lint": "tsc --noEmit",
+    "check": "tsx src/schema.check.ts && tsx src/db.check.ts && tsx src/rateLimit.check.ts && tsx src/orders.check.ts && tsx src/headers.check.ts && tsx src/credentials.check.ts && tsx src/auth.check.ts && tsx src/uploads.check.ts && tsx src/payments.check.ts"
+  },
+  "dependencies": {
+    "@freshfold/core": "*",
+    "@google/genai": "^2.4.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^4.21.2",
+    "postgres": "^3.4.9"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.14.0",
+    "esbuild": "^0.25.0",
+    "tsx": "^4.21.0"
+  }
+}

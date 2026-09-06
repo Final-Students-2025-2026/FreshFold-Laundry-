@@ -1,0 +1,177 @@
+# Render blueprint for the FreshFold dispatch server.
+#
+# The server is deliberately NOT serverless. `startHubCycle()` in
+# apps/server/src/hub.ts sweeps every 15 seconds to walk jobs through the hub
+# stages, and `start()` in index.ts checks the database and seeds the roster
+# before the port opens. Both need one long-lived process, which is why this
+# lives here rather than next to the website on Vercel.
+#
+# The website is served from Vercel and proxies /api back here — see
+# vercel.json. Deploy this first: the Render URL is what that rewrite points at.
+
+services:
+  - type: web
+    name: freshfold-server
+    runtime: node
+    plan: free
+
+    # Should match the Supabase project's region — every request the server
+    # serves makes at least one round trip to Postgres, so the distance between
+    # these two matters far more than the distance to the browser.
+    region: frankfurt
+
+    # Installed from the repo root so the npm workspace link to
+    # @freshfold/core resolves. The build bundles with esbuild but leaves
+    # express/cors/dotenv/postgres/@google/genai external, so node_modules has
+    # to survive into the runtime — Render keeps it, so this works.
+    #
+    # `--include=dev` because NODE_ENV below is set during the build as well as
+    # at runtime, and npm reads a production NODE_ENV as "omit devDependencies".
+    # The build opens with `tsc --noEmit`, which needs @types/express and
+    # @types/cors, and both are devDependencies of @freshfold/server. Without
+    # this the compile fails with TS7016 on every file that imports express —
+    # and it fails only here: a local build has no NODE_ENV set, so npm installs
+    # the types and the same commit compiles clean on a laptop.
+    buildCommand: npm install --include=dev && npm run build --workspace @freshfold/server
+
+    # Pending migrations, applied before the new code starts serving.
+    #
+    # This ran by hand for the first twenty-four migrations, and the gap that
+    # leaves is not theoretical: `owner_email` was added to `store.ts`'s where
+    # clause while the migration adding the column sat untracked on one
+    # machine. Code arriving before its schema does not degrade — `jobs.list`
+    # throws `column "owner_email" does not exist`, which is `GET /api/bookings`,
+    # the desk board and `/auth/resend-setup` all answering 500 at once.
+    #
+    # Pre-deploy is the right hook rather than the build: it runs against the
+    # live database with the service's own environment, and a failure here
+    # aborts the deploy instead of promoting a build that cannot serve. Putting
+    # it in `buildCommand` would run it in an environment that has no
+    # DATABASE_URL, and putting it in `startCommand` would race every restart.
+    #
+    # Safe on every deploy, including the ones with nothing pending: the runner
+    # records each file in `schema_migrations` and skips what it has already
+    # applied, so a deploy that changes no schema logs "up to date" and exits 0.
+    # A migration that fails exits 1, which aborts the deploy — the service
+    # keeps serving the old build rather than starting one whose schema is half
+    # applied. Each file and the row recording it share one transaction.
+    preDeployCommand: npm run db:migrate --workspace @freshfold/server
+
+    startCommand: npm run start --workspace @freshfold/server
+
+    # Answers 503 when Postgres is unreachable rather than a cheerful 200, so a
+    # process that is up but cannot serve anything gets recycled instead of
+    # sitting in the routing table returning 500s.
+    healthCheckPath: /api/health
+
+    envVars:
+      # Turns on the CORS allow-list and the static-file branch in index.ts.
+      - key: NODE_ENV
+        value: production
+
+      # Render terminates TLS at its own proxy, so X-Forwarded-For carries the
+      # real client IP and /api/directions can rate-limit per caller instead of
+      # putting the whole internet in one bucket.
+      - key: TRUST_PROXY
+        value: "1"
+
+      # Render injects PORT; index.ts already reads it.
+
+      # Kept well under Supabase's connection limit. Use the *pooled* Supabase
+      # string (port 6543) — the free instance will not survive a direct 5432
+      # connection per process.
+      - key: DATABASE_POOL_MAX
+        value: "5"
+
+      # --- Set these in the Render dashboard; `sync: false` keeps them out of git ---
+
+      # Supabase → Project Settings → Database → Connection string → URI.
+      - key: DATABASE_URL
+        sync: false
+
+      # The CA that DATABASE_URL's certificate is checked against. Supabase →
+      # Database → Settings → SSL Configuration → download the CA certificate,
+      # and paste the whole PEM block here.
+      #
+      # Without it the connection is encrypted but not authenticated — any
+      # certificate is accepted, so anyone in the path to Supabase reads and
+      # rewrites every record and collects the password above. The server warns
+      # about this on every boot until it is set.
+      - key: SUPABASE_CA_CERT
+        sync: false
+
+      # Set to "true" once SUPABASE_CA_CERT is in place. The server then refuses
+      # to start without it, rather than falling back to an unverified
+      # connection — which is what stops the certificate quietly going missing
+      # in a later deploy and nobody noticing.
+      - key: DATABASE_SSL_STRICT
+        sync: false
+
+      # The password the first supervisor account is created with. Read only when
+      # the `supervisors` table is empty, so this matters on the very first deploy
+      # against a new database and is ignored on every one after. Unset, that first
+      # boot fails on purpose rather than creating a desk account — full read of
+      # every customer record, and settlement on every bill — with a default
+      # password. Set it to something long before the first deploy.
+      - key: SEED_SUPERVISOR_PASSWORD
+        sync: false
+
+      # The Vercel origin, so the customer app and any Expo web build can call
+      # this cross-origin. The website itself does not need to be listed — its
+      # /api calls are proxied by Vercel server-side and arrive same-origin.
+      #
+      # It is also the allow-list for where Paystack may return a customer after
+      # checkout, so the public site's origin belongs here even though CORS does
+      # not strictly need it. APP_URL's origin is always allowed on top. A
+      # callback outside both is refused with `callback-not-allowed` rather than
+      # quietly redirected, so a missing entry fails loudly in test rather than
+      # silently in front of a paying customer.
+      - key: CORS_ORIGINS
+        sync: false
+
+      # Public origin of the deployed site. Used as the Paystack callback and
+      # baked into the links inside outbound email, so it must be the domain a
+      # customer actually sees — not the onrender.com URL.
+      - key: APP_URL
+        sync: false
+
+      # Outbound email. Brevo is used in preference to Resend when both are
+      # set — it verifies a single sender address rather than a whole domain,
+      # which is what lets confirmations reach customers before we own one.
+      - key: BREVO_API_KEY
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+
+      # Must be a sender the provider recognises: verified in Brevo's Senders
+      # list, or on a domain verified in Resend. Anything @resend.dev only ever
+      # reaches the account owner.
+      - key: EMAIL_FROM
+        sync: false
+
+      # Where the website's contact form sends enquiries. Optional — unset,
+      # they go to EMAIL_FROM's address, which is the mailbox whose owner
+      # clicked the verification link and is therefore known to be read. Every
+      # enquiry is recorded on `enquiries` before the email is attempted, so a
+      # provider outage costs the notification rather than the message.
+      - key: CONTACT_EMAIL
+        sync: false
+
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: PAYSTACK_SECRET_KEY
+        sync: false
+      - key: GOOGLE_MAPS_PLATFORM_KEY
+        sync: false
+
+      # Leave both blank. The two hub stages — In Care → Ironing & Folding →
+      # Quality Check — are confirmed from the desk's Hub tab by whoever knows
+      # the load is done, and in production the timed sweep does not run at all
+      # unless one of these is set. Setting either turns it back on for both
+      # stages, at a 2-minute default dwell, which means telling customers their
+      # laundry is washed on the evidence that a clock passed a number. Every
+      # advance it makes is filed in the audit trail against `system`.
+      - key: HUB_WASH_MINUTES
+        sync: false
+      - key: HUB_FINISH_MINUTES
+        sync: false

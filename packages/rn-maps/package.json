@@ -1,0 +1,21 @@
+{
+  "name": "@freshfold/rn-maps",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Map wiring shared by the two React Native apps: the vendor choice and the road-route hook.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@freshfold/core": "*",
+    "react": ">=19",
+    "react-native": ">=0.81",
+    "react-native-maps": ">=1.20"
+  }
+}

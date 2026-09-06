@@ -1,0 +1,733 @@
+/* The webfonts are loaded from index.html, not with an `@import` here.
+   An `@import` is only discovered once this file has been fetched and parsed,
+   so it serialises HTML -> this stylesheet -> Google's stylesheet -> the font
+   files. The <link rel="preconnect"> and <link rel="stylesheet"> in index.html
+   start that work while the HTML is still parsing instead. Keep the family
+   list there in step with --font-display / --font-serif / --font-sans /
+   --font-mono below. */
+
+@import "tailwindcss";
+
+@theme {
+  --font-serif: "Cormorant Garamond", Georgia, serif;
+  --font-sans: "Outfit", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+
+  /* ---------------------------------------------------------------------
+     The marketing page's two voices.
+
+     Cormorant Garamond sets every heading; Archivo sets everything a reader
+     *uses* — body copy, prices, labels, buttons, the numbers in a table. That
+     is a real contrast axis (old-style serif against a neo-grotesque) rather
+     than two sans-serifs that almost match, and each face is doing the job it
+     is good at: the serif carries the voice, the grotesque carries the data.
+
+     `--font-serif` and `--font-sans` are the supervisor desk's and stay
+     exactly as they were; the landing does not read them. The client portal
+     used to be on that pair too and has moved onto this one: it is a screen
+     made almost entirely of numbers — balances, points, order ids, dates — and
+     Archivo has the tabular figures (`.tnum` below) and the width axis that
+     Outfit does not. It is also the same shop, and it should read like it.
+
+     What made the old serif headline look flimsy was not the family. It was
+     weight 300 at 8xl with `tracking-tighter`: Cormorant's hairlines are fine
+     to begin with, light type on a dark ground reads lighter still, and
+     -0.05em pushed the serifs into each other. The scale below fixes all three
+     — weight comes from the call site (500, never 300), and the tracking here
+     is nearly neutral because a Garamond at display size does not want to be
+     squeezed.
+     --------------------------------------------------------------------- */
+  --font-display: "Cormorant Garamond", Georgia, "Times New Roman", serif;
+  --font-ui: "Archivo", "Helvetica Neue", Helvetica, Arial, sans-serif;
+
+  /* The landing's type scale. Fluid, and each step at least 1.25x the one
+     below it — a flatter ramp reads as uncommitted.
+
+     The heading steps run larger than a grotesque would at the same numbers:
+     Cormorant has a small x-height for its point size, so it sets optically
+     smaller and needs the extra em to hold a page this wide. Line-heights stay
+     open — the ascenders and descenders are long, and 0.9 collided them on any
+     headline that ran to two lines. */
+  --text-hero: clamp(2.75rem, 5.6vw, 5rem);
+  --text-hero--line-height: 1;
+  --text-hero--letter-spacing: -0.015em;
+
+  --text-section: clamp(2.25rem, 4.4vw, 3.5rem);
+  --text-section--line-height: 1.05;
+  --text-section--letter-spacing: -0.01em;
+
+  --text-sub: clamp(1.5rem, 2.3vw, 1.875rem);
+  --text-sub--line-height: 1.2;
+  --text-sub--letter-spacing: -0.005em;
+
+  --text-lead: clamp(1rem, 1.25vw, 1.1875rem);
+  --text-lead--line-height: 1.65;
+
+  --text-body: 0.9375rem;
+  --text-body--line-height: 1.7;
+
+  --text-label: 0.8125rem;
+  --text-label--line-height: 1.4;
+
+  /* A semantic stack, so nothing on the page has to guess a number. The
+     landing only reaches the first three; the modal and toast rungs are here
+     so the overlays that open on top of it stay in one system. */
+  --z-base: 0;
+  --z-sticky: 30;
+  --z-floating: 40;
+  --z-header: 50;
+  --z-modal: 60;
+  --z-toast: 70;
+  
+  --color-brand-charcoal: #0D0D0D;
+  --color-brand-card: #161616;
+  --color-brand-card-light: #242424;
+  
+  /* Earthy olive and stone tones from theme.
+     Tuned for this dark surface. The rider app carries lighter variants of the
+     same roles in apps/mobile/src/theme.ts because it sits on ivory — they are
+     intentionally different values, not drift. */
+  --color-brand-sage: #5A5A40;
+  --color-brand-sage-dark: #3D3D2D;
+  --color-brand-sage-light: #8C8C6A;
+  
+  /* Luxury champagne gold accent */
+  --color-brand-gold: #C5A880;
+  --color-brand-gold-dark: #A3845B;
+  --color-brand-gold-light: #E2D1B9;
+  
+  --color-brand-text-muted: #8E9299;
+  --color-brand-text-light: #F5F5F4;
+
+  /* ---------------------------------------------------------------------
+     Admin surface.
+
+     The supervisor desk is an internal tool, not a shopfront, and it is sized
+     for someone watching thirty live orders at once. Its *layout* is its own —
+     a rail, cards, pill controls — but the colours are the web app's: brand
+     charcoal ground, `#161616` cards, champagne gold as the accent, olive sage
+     for primary actions. Semantic green/amber/red mean paid, pending, wrong,
+     and nothing else on the desk is coloured for decoration.
+
+     Marketing components keep `brand-*`; nothing here touches them.
+     --------------------------------------------------------------------- */
+  --color-admin-bg: #0D0D0D;
+  --color-admin-panel: #161616;
+  --color-admin-raised: #1E1E1E;
+  --color-admin-hover: #242424;
+  --color-admin-line: #262626;
+  --color-admin-line-strong: #3A3A38;
+
+  --color-admin-fg: #F5F5F4;
+  --color-admin-fg-2: #A8A8A2;
+  --color-admin-fg-3: #77776F;
+
+  /* The rail. Sits above the ground rather than beside it, so the active pill
+     can be cut out of it in the page colour. */
+  --color-admin-rail: #161616;
+  --color-admin-primary: #5A5A40;
+  --color-admin-primary-soft: rgba(90, 90, 64, 0.18);
+
+  --color-admin-accent: #C5A880;
+  --color-admin-accent-soft: rgba(197, 168, 128, 0.12);
+
+  --color-admin-ok: #34D399;
+  --color-admin-warn: #FBBF24;
+  --color-admin-danger: #F87171;
+  --color-admin-info: #7DA6E8;
+}
+
+@layer base {
+  /*
+   * The page's ground colour, set here rather than left to React.
+   *
+   * Every dark surface on this site is painted by a component, including the
+   * fixed backdrop behind the hero — a `motion` element that starts at
+   * `opacity: 0` and fades in on mount. Until that runs, `html` and `body` had
+   * no background of their own and the browser default showed through: a white
+   * page. On a fast desktop that is a flash nobody sees. On a phone it is not
+   * necessarily brief — a slower CPU, a slow network, or a tab the browser
+   * froze and restored without ever running `requestAnimationFrame` can leave
+   * it there for the whole visit.
+   *
+   * Setting it here costs nothing and removes the failure mode: the worst case
+   * becomes an empty dark page rather than an empty white one, and the hero
+   * fades in over the colour it was always going to land on.
+   */
+  html,
+  body {
+    background-color: var(--color-brand-charcoal);
+    color: var(--color-brand-text-light);
+  }
+}
+
+@layer utilities {
+  .glass-card {
+    background: rgba(22, 22, 22, 0.85);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .glass-card-hover {
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .glass-card-hover:hover {
+    transform: translateY(-4px);
+    border-color: rgba(90, 90, 64, 0.4);
+    box-shadow: 0 16px 36px -12px rgba(0, 0, 0, 0.82);
+  }
+
+  /* Thin scrollbars for the dense admin panes — the default 15px gutter is a
+     column of data on a table this tight. */
+  .admin-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: #3A3A38 transparent;
+  }
+  .admin-scroll::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .admin-scroll::-webkit-scrollbar-thumb {
+    background: #2E2E2C;
+    border-radius: 8px;
+  }
+  .admin-scroll::-webkit-scrollbar-thumb:hover {
+    background: #45453F;
+  }
+  .admin-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  /* The soft, wide lift every card on the desk shares. A single shadow used
+     everywhere is what makes a panel grid read as one plane. */
+  .admin-card {
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.4),
+      0 10px 30px -14px rgba(0, 0, 0, 0.7);
+  }
+
+  /*
+    The inverted corners on the active rail item.
+
+    The selected nav row is a light pill that runs to the rail's right edge and
+    joins the content area, so the purple has to curve *away* from it above and
+    below. That is not a border-radius — it is two radial cut-outs, drawn here
+    as pseudo-elements rather than as four extra divs at every call site.
+  */
+  .admin-rail-active::before,
+  .admin-rail-active::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    width: 14px;
+    height: 14px;
+    background: var(--color-admin-bg);
+    pointer-events: none;
+  }
+  .admin-rail-active::before {
+    top: -14px;
+    border-bottom-right-radius: 14px;
+    box-shadow: 0 7px 0 0 var(--color-admin-rail);
+  }
+  .admin-rail-active::after {
+    bottom: -14px;
+    border-top-right-radius: 14px;
+    box-shadow: 0 -7px 0 0 var(--color-admin-rail);
+  }
+}
+
+
+/* -------------------------------------------------------------------------
+   The marketing page.
+
+   Three things live here rather than in the components: the hairline every
+   section is divided by, the reveal's reduced-motion escape, and a focus ring
+   that is legible on charcoal. Everything else is Tailwind at the call site.
+   ------------------------------------------------------------------------- */
+/*
+ * The focus ring, deliberately unlayered.
+ *
+ * Two things had gone wrong with it inside `@layer base`. The colour was
+ * losing to a later `outline-color` and the ring came out as `currentColor`,
+ * which on a gold button is charcoal on gold — a focus ring you cannot see is
+ * the same as no focus ring. And the shorthand alone was not enough, so the
+ * colour is repeated as a longhand after it. Unlayered rules outrank every
+ * layered one, which is exactly the guarantee this particular rule wants:
+ * nothing a utility class does should be able to take the ring away.
+ *
+ * `.portal` is in the list because the client portal had no focus rule of its
+ * own — it renders outside `.ff`, so every control on it fell back to whatever
+ * ring the browser draws, which on Firefox is a thin dark outline that is
+ * invisible on `#0D0D0D`. It is a screen people operate from a keyboard to
+ * pay a bill; it needs the ring more than the landing does.
+ *
+ * Champagne gold because it is the one accent legible on both the charcoal
+ * ground (8.5:1) and the olive band. No `border-radius` here — the browser
+ * already follows the element's own corners, and setting one would reshape
+ * every rounded button the moment it took focus.
+ */
+.ff a:focus-visible,
+.ff button:focus-visible,
+.ff input:focus-visible,
+.ff textarea:focus-visible,
+.ff select:focus-visible,
+.ff [tabindex]:focus-visible,
+.portal a:focus-visible,
+.portal button:focus-visible,
+.portal input:focus-visible,
+.portal textarea:focus-visible,
+.portal select:focus-visible,
+.portal [tabindex]:focus-visible {
+  outline: 2px solid var(--color-brand-gold);
+  outline-color: var(--color-brand-gold);
+  outline-offset: 3px;
+  /* `transition-colors` counts `outline-color` among the colours it animates,
+     so the ring was fading up from `currentColor` over 200ms — on a gold
+     button that means it starts as charcoal-on-gold and is invisible for the
+     first frames. A focus ring has to be there the instant focus is, so the
+     list is restated here without it. */
+  transition-property: color, background-color, border-color;
+}
+
+@layer base {
+  /*
+   * Reduced motion is an instruction, not a preference to weigh.
+   *
+   * The reveals below already check `prefers-reduced-motion` in JS before they
+   * arm — see components/ui/Reveal.tsx — so this is the belt to that braces:
+   * anything animated by a stylesheet, a library default, or a `transition`
+   * class on a hover state collapses to an instant change.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    .ff *,
+    .ff *::before,
+    .ff *::after,
+    .portal *,
+    .portal *::before,
+    .portal *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer utilities {
+  /* The width axis, named. Archivo is variable on `wdth`, so "expanded" is a
+     real axis position rather than a second font file or a letter-spacing
+     hack — a wordmark or a figure gains width instead of gaps.
+
+     Only meaningful on Archivo. Cormorant has no width axis, so these do
+     nothing on a heading; that is why the headings do not carry them. */
+  .fs-expanded {
+    font-stretch: 118%;
+  }
+  .fs-semi {
+    font-stretch: 108%;
+  }
+  .fs-narrow {
+    font-stretch: 92%;
+  }
+
+  /* Prices, durations and counts, so columns of them line up. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+
+  /*
+    The page's one entrance. See components/ui/Reveal.tsx for why it is a CSS
+    transition and not a JavaScript tween: the styles below are the *resting*
+    state, so an animation that never runs leaves the section visible rather
+    than blank.
+  */
+  .reveal {
+    transition:
+      opacity 700ms cubic-bezier(0.16, 1, 0.3, 1),
+      transform 700ms cubic-bezier(0.16, 1, 0.3, 1),
+      clip-path 900ms cubic-bezier(0.16, 1, 0.3, 1);
+    transition-delay: var(--reveal-delay, 0ms);
+  }
+  .reveal-hidden {
+    opacity: 0;
+    transform: translateY(var(--reveal-y, 18px));
+  }
+  /* The hero photograph, which wipes up rather than rising. */
+  .reveal-clip {
+    clip-path: inset(0 0 0 0);
+  }
+  .reveal-clip.reveal-hidden {
+    transform: none;
+    clip-path: inset(0 0 20% 0);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .reveal {
+      transition: none;
+    }
+    .reveal-hidden {
+      opacity: 1;
+      transform: none;
+      clip-path: none;
+    }
+  }
+
+  /* -----------------------------------------------------------------------
+     The stage illustrations.
+
+     Drawn rather than fetched. Six PNGs would be six requests, would need a
+     second set at 2x, and would arrive in whatever colours the artwork was
+     saved in — these are strokes in the brand's own palette that stay crisp at
+     any size and recolour with the theme. Every one of them is decorative and
+     marked `aria-hidden`; the stage is fully described by its text.
+
+     Each scene is keyed on the active stage, so React remounts it and the
+     animations restart from the top when the reader picks a new one.
+     ----------------------------------------------------------------------- */
+  .sa-spin {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: sa-spin 7s linear infinite;
+  }
+  .sa-roll {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: sa-spin 1.8s linear infinite;
+  }
+  @keyframes sa-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  /* Bubbles in the drum, and steam off the press. Same idea, different arc. */
+  .sa-bubble {
+    transform-box: fill-box;
+    animation: sa-bubble 2.8s ease-in-out infinite;
+  }
+  .sa-bubble:nth-of-type(2) {
+    animation-delay: 0.55s;
+  }
+  .sa-bubble:nth-of-type(3) {
+    animation-delay: 1.15s;
+  }
+  .sa-bubble:nth-of-type(4) {
+    animation-delay: 1.7s;
+  }
+  @keyframes sa-bubble {
+    0% {
+      opacity: 0;
+      transform: translateY(6px) scale(0.7);
+    }
+    35% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+      transform: translateY(-16px) scale(1.05);
+    }
+  }
+
+  .sa-steam {
+    transform-box: fill-box;
+    animation: sa-steam 3.2s ease-in-out infinite;
+  }
+  .sa-steam:nth-of-type(2) {
+    animation-delay: 0.7s;
+  }
+  .sa-steam:nth-of-type(3) {
+    animation-delay: 1.4s;
+  }
+  @keyframes sa-steam {
+    0% {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    40% {
+      opacity: 0.9;
+    }
+    100% {
+      opacity: 0;
+      transform: translateY(-14px);
+    }
+  }
+
+  /* The road under the van, and the pulse on the booked day. */
+  .sa-dash {
+    animation: sa-dash 1.1s linear infinite;
+  }
+  @keyframes sa-dash {
+    to {
+      stroke-dashoffset: -24;
+    }
+  }
+  .sa-pulse {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: sa-pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes sa-pulse {
+    0%,
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.55;
+      transform: scale(1.18);
+    }
+  }
+
+  /*
+    The tick that draws itself, and the stack that settles into the doorway.
+
+    Both rest in their *finished* state and animate away from it, with no fill
+    mode and no delay. The first pass had the tick sitting at
+    `stroke-dashoffset: 44` — undrawn — and only `forwards` on the animation put
+    it right; a throttled or never-started animation left a magnifier with no
+    tick in it. Same for the stack, which held `opacity: 0` through a
+    `backwards` fill. The rule the reveals already follow applies here too:
+    what the element looks like when nothing runs has to be what it is supposed
+    to look like.
+
+    The delays went with it. A staggered entrance needs the element hidden
+    during its delay, and hidden-by-default is the thing being avoided.
+  */
+  .sa-draw {
+    stroke-dasharray: 44;
+    stroke-dashoffset: 0;
+    animation: sa-draw 0.9s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @keyframes sa-draw {
+    from {
+      stroke-dashoffset: 44;
+    }
+  }
+  .sa-drop {
+    transform-box: fill-box;
+    animation: sa-drop 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @keyframes sa-drop {
+    from {
+      transform: translateY(-12px);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sa-spin,
+    .sa-roll,
+    .sa-bubble,
+    .sa-steam,
+    .sa-dash,
+    .sa-pulse,
+    .sa-drop {
+      animation: none;
+    }
+    /* The tick is drawn by an animation, so without one it has to start
+       finished rather than start invisible. */
+    .sa-draw {
+      animation: none;
+      stroke-dashoffset: 0;
+    }
+  }
+
+  /* The scroll cue's drift. Slow, small, and the only thing on the page that
+     loops — it is pointing, and a pointer that has stopped moving stops
+     reading as one. */
+  .scroll-cue {
+    animation: cue-bob 2.6s ease-in-out infinite;
+  }
+  @keyframes cue-bob {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(5px);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .scroll-cue {
+      animation: none;
+    }
+  }
+
+  /*
+    The swap, for a panel whose contents change under a tab or a stepper.
+
+    A CSS animation with **no fill mode**, on purpose. Outside the 320ms it is
+    running, the element is at its ordinary style — visible — so a swap that
+    never animates is a swap that simply happened. `AnimatePresence mode="wait"`
+    was the first version of this and it holds the incoming panel back until an
+    outgoing tween finishes; throttle the frames and the panel never arrives,
+    so a tab click does nothing at all. React remounts on `key`, which is what
+    restarts the animation.
+  */
+  .panel-swap {
+    animation: panel-in 320ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @keyframes panel-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .panel-swap {
+      animation: none;
+    }
+  }
+
+  /*
+    The overlays, on the same terms as `.panel-swap` and for a harder reason.
+
+    These were `AnimatePresence` + `motion`, and the exit did not complete: a
+    closed sheet stayed mounted at `opacity: 0`. An invisible element still
+    takes clicks, and these are `fixed inset-0`, so dismissing a payment sheet
+    left a transparent pane over the whole portal and nothing on it could be
+    clicked again. The bug is silent — there is nothing to see, which is the
+    problem.
+
+    A conditional render cannot fail that way: closed means gone. The entrance
+    is a CSS animation with no fill mode, so an animation that never runs
+    leaves the sheet exactly where it belongs — on screen, opaque, usable.
+  */
+  .overlay-in {
+    animation: overlay-in 200ms ease-out;
+  }
+  @keyframes overlay-in {
+    from {
+      opacity: 0;
+    }
+  }
+  .sheet-in {
+    animation: sheet-in 260ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @keyframes sheet-in {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .overlay-in,
+    .sheet-in {
+      animation: none;
+    }
+  }
+
+  /* The hairline that separates one thing from the next on the charcoal
+     ground, and its counterpart inside the olive band. Two values, used
+     everywhere, so the page reads as one sheet of paper. */
+  .rule {
+    border-color: rgba(245, 245, 244, 0.1);
+  }
+  .rule-on-sage {
+    border-color: rgba(13, 13, 13, 0.22);
+  }
+}
+
+/* -------------------------------------------------------------------------
+   Landing on a section, under a header that is on top of it.
+
+   Every in-page jump on this site — the header nav, the footer's "On this
+   page" list, the hero's scroll cue, a `#contact` link somebody was sent —
+   ends in `scrollIntoView({ block: 'start' })` or a native `:target` jump.
+   Both put the top of the section at the top of the *viewport*, and the top of
+   the viewport is where the fixed header is. So every one of them landed with
+   the section's heading hidden behind the header, and the reader arrived
+   looking at the second paragraph of what they asked for.
+
+   `scroll-margin-top` is the fix that works for all of them at once, including
+   the ones no JavaScript here is involved in: it tells the browser the box
+   starts higher than it does, so every scrolling mechanism stops short by this
+   much. A number passed to `scrollIntoView` would only have fixed the ones the
+   app calls itself.
+
+   5.5rem is the taller of the header's two heights (`py-5`, unscrolled) plus a
+   little air. It cannot be a variable the header sets, because the header is
+   `fixed` and its height is not in the layout for anything to read.
+   ------------------------------------------------------------------------- */
+@layer base {
+  :where(section[id], main[id]) {
+    scroll-margin-top: 5.5rem;
+  }
+}
+
+@layer utilities {
+  /*
+    The three dots on the lazy-chunk placeholder. See ui/Pending.tsx.
+
+    A staggered fade rather than a bouncing translate: this appears over a page
+    that is otherwise still, and something moving position in the middle of a
+    dark screen pulls the eye harder than a wait deserves.
+  */
+  .pending-dot {
+    animation: pending-pulse 1.2s ease-in-out infinite;
+  }
+  .pending-dot:nth-child(2) {
+    animation-delay: 0.16s;
+  }
+  .pending-dot:nth-child(3) {
+    animation-delay: 0.32s;
+  }
+  @keyframes pending-pulse {
+    0%,
+    100% {
+      opacity: 0.25;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+
+  /* A toast arriving. Same curve and distance as `.sheet-in`, so the two read
+     as the same system moving at the same speed. See ui/Toast.tsx. */
+  .toast-in {
+    animation: toast-in 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
+
+  /*
+    Reduced motion, for the three above.
+
+    The blanket rule near the top of this file collapses animation durations
+    inside `.ff` and `.portal`. These render outside both — the toast region
+    and the pending overlay are mounted at the document root, above `App` — so
+    they need saying again. `.pending-dot` resolves to a static half-lit dot
+    rather than to nothing: the point of it is that something is happening.
+  */
+  @media (prefers-reduced-motion: reduce) {
+    .pending-dot {
+      animation: none;
+      opacity: 0.7;
+    }
+    .toast-in {
+      animation: none;
+    }
+  }
+}
+
+/* -------------------------------------------------------------------------
+   Room for the connection banner.
+
+   `ConnectionBanner` is `position: fixed` at the top of the viewport, and so
+   is every top-level surface on this site: the marketing header, the client
+   portal (`fixed inset-0`) and the supervisor desk. Fixed elements are
+   positioned against the viewport, so a padding or margin on `body` cannot
+   move them — each one has to be told, and telling each one in its own
+   component would be four copies of the same number to keep in step.
+
+   `--banner-h` is set by the banner from its own measured height and removed
+   when it is not on screen, so this resolves to `top: 0` the rest of the time
+   — which is almost always. Applied to a surface's outermost fixed element.
+   ------------------------------------------------------------------------- */
+@layer utilities {
+  .below-banner {
+    top: var(--banner-h, 0px);
+  }
+}

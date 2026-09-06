@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0D0D0D" />
+    <meta
+      name="description"
+      content="FreshFold collects laundry across Kumasi, washes it properly and brings it back the next day. Wash from ₵30 a load. Pickup and delivery are free."
+    />
+
+    <!--
+      The canonical tag, the share card, the icons and the LocalBusiness
+      structured data are injected here at build time by vite/site-metadata.ts.
+      They are not written out below because three of them are restatements of
+      facts that live elsewhere in the repo — the title on this page, the shop
+      details in src/shop.ts, the domain in SITE_URL — and a restatement is a
+      thing to forget to update. See that file for the whole argument.
+    -->
+
+    <!--
+      Where the images come from.
+
+      The hero photograph is the largest thing on the page and it is on another
+      origin, so the browser cannot start fetching it until it has done a DNS
+      lookup and a TLS handshake with a host it has never spoken to. Both of
+      those happen while this HTML is still parsing instead.
+    -->
+    <link rel="preconnect" href="https://images.unsplash.com" crossorigin />
+
+    <!--
+      The hero photograph, requested before the bundle that asks for it.
+
+      This is the page's LCP element. Without a preload it is not discovered
+      until React has downloaded, parsed and rendered the hero, which on a
+      mid-range Android over Kumasi mobile data is several seconds after the
+      connection was idle and could have been fetching it.
+
+      `imagesrcset` must stay in step with the `Hero` component's own — the
+      browser picks a candidate from this list, and if the element then asks
+      for a different one, the preload is a wasted download rather than a
+      saved one. See components/Hero.tsx.
+    -->
+    <link
+      rel="preload"
+      as="image"
+      fetchpriority="high"
+      href="https://images.unsplash.com/photo-1524404794194-16bae22718c0?auto=format&amp;fit=crop&amp;q=72&amp;w=1280"
+      imagesrcset="
+        https://images.unsplash.com/photo-1524404794194-16bae22718c0?auto=format&amp;fit=crop&amp;q=72&amp;w=640 640w,
+        https://images.unsplash.com/photo-1524404794194-16bae22718c0?auto=format&amp;fit=crop&amp;q=72&amp;w=960 960w,
+        https://images.unsplash.com/photo-1524404794194-16bae22718c0?auto=format&amp;fit=crop&amp;q=72&amp;w=1280 1280w,
+        https://images.unsplash.com/photo-1524404794194-16bae22718c0?auto=format&amp;fit=crop&amp;q=72&amp;w=1920 1920w"
+      imagesizes="100vw"
+    />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <!--
+      The fonts, in two requests rather than one, because they are not equally
+      urgent.
+
+      **Blocking:** Cormorant sets every heading on the marketing page and
+      Archivo sets everything else on it — body copy, prices, labels, buttons.
+      Nothing above the fold renders in the right face without these two, so
+      they are worth the round trip.
+
+      **Deferred:** Outfit and JetBrains Mono are `--font-sans` and
+      `--font-mono`, which only the supervisor desk and a few portal readouts
+      reference. They used to sit in the same blocking request, so every
+      visitor to the marketing page waited on two families that page never
+      uses.
+
+      `media="print"` is what makes the second request non-blocking: it does
+      not match the screen, so the browser fetches it at low priority without
+      holding up the first paint. src/main.tsx promotes it to `media="all"`
+      once the module runs. That promotion is deliberately *not* an `onload`
+      attribute here — the site's CSP is `script-src 'self'` with no
+      `unsafe-inline`, which blocks inline event handlers, so an `onload` swap
+      would silently never fire and these two families would never load at all.
+
+      Archivo's axes are narrowed to what the page asks for. The full ranges
+      (`wdth 62..125, wght 100..900`) shipped a variable font covering widths
+      and weights nothing here sets — `.fs-narrow` is the lowest at 92%, and
+      no call site goes below 400 weight.
+
+      Keep this list in step with --font-display / --font-serif / --font-sans /
+      --font-mono in src/index.css.
+    -->
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@92..125,400..900&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap"
+    />
+    <link
+      rel="stylesheet"
+      media="print"
+      data-deferred-font="true"
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+    />
+
+    <title>FreshFold Laundry Co. — Kumasi laundry, collected and returned</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
