@@ -20,7 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
  *
  * This exists instead of React Native's `KeyboardAvoidingView`, which cannot
  * work in either app: both run edge-to-edge on Android (`edgeToEdgeEnabled` in
- * app.config.js, and SDK 54 offers no way out of it), and an edge-to-edge
+ * app.config.js, and since SDK 54 there is no way out of it), and an edge-to-edge
  * window is never resized when the keyboard opens. `KeyboardAvoidingView`
  * works out how far to move by comparing its own bottom edge against the
  * keyboard's reported top, and on Android that top is reported as the bottom

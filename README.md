@@ -65,7 +65,7 @@ find the dispatch server automatically by reusing the host of the Expo dev
 server — no IP address to configure, as long as everything is on the same
 machine. They install side by side: different bundle ids, different schemes.
 
-> **Expo Go version matters.** Both target **Expo SDK 54**, and a given Expo Go
+> **Expo Go version matters.** Both target **Expo SDK 57**, and a given Expo Go
 > build supports exactly one SDK.
 
 ### Seeing the link work

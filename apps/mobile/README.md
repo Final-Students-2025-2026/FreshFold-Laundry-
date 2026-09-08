@@ -42,7 +42,7 @@ jobs, so a console that has never connected shows an empty board and says so.
 `npx expo start --web` also works for a quick browser look at the flows, with a coordinate
 readout standing in for the map — `react-native-maps` is iOS/Android only.
 
-> **Expo Go version matters.** This project targets **Expo SDK 54**, and a given Expo Go build
+> **Expo Go version matters.** This project targets **Expo SDK 57**, and a given Expo Go build
 > supports exactly one SDK. If your Expo Go is built for a different SDK, the project will fail
 > to launch. Check the SDK your Expo Go supports on its home screen, and either match it here or
 > install the matching Expo Go.

@@ -29,7 +29,7 @@ for the browser. The app finds the dispatch server by reusing the host of the
 Expo dev server, so there is no IP address to configure as long as both are on
 the same machine.
 
-> Targets **Expo SDK 54**, like the rider app. A given Expo Go build supports
+> Targets **Expo SDK 57**, like the rider app. A given Expo Go build supports
 > exactly one SDK.
 
 The rider app and this one install side by side — different bundle id

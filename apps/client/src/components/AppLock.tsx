@@ -215,7 +215,7 @@ export default function AppLock() {
 
 const styles = StyleSheet.create({
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: colors.bgIvory,
     alignItems: 'center',
     justifyContent: 'center',
