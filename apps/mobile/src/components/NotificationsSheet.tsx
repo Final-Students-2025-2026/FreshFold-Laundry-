@@ -25,9 +25,20 @@ export default function NotificationsSheet({
 }: NotificationsSheetProps) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.scrim} onPress={onClose}>
+      <View style={styles.scrim}>
+        {/* Layered behind the panel, not wrapped around it — a pressable
+            ancestor takes the responder on touch-down and the alert list
+            underneath then never scrolls. See `modalScrim` in the rider
+            console for the full account. */}
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          accessibilityRole="button"
+          accessibilityLabel="Dismiss alerts"
+          onPress={onClose}
+        />
+
         <SafeAreaView edges={['top']} style={styles.safe}>
-          <Pressable style={styles.panel} onPress={(e) => e.stopPropagation()}>
+          <View style={styles.panel}>
             <View style={styles.header}>
               <Text style={text.title}>Alerts</Text>
               <Pressable
@@ -68,16 +79,18 @@ export default function NotificationsSheet({
                 ))}
               </ScrollView>
             )}
-          </Pressable>
+          </View>
         </SafeAreaView>
-      </Pressable>
+      </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
   scrim: { flex: 1, backgroundColor: tints.scrim },
-  safe: { paddingHorizontal: 12 },
+  // `box-none` so a tap on the margin beside the panel still reaches the
+  // dismiss layer behind it, without this sitting in the list's ancestry.
+  safe: { paddingHorizontal: 12, pointerEvents: 'box-none' },
   panel: {
     backgroundColor: colors.cardPure,
     borderRadius: radius.xxl,

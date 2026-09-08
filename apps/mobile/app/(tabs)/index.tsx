@@ -747,11 +747,21 @@ export default function HomeScreen() {
         animationType="slide"
         onRequestClose={() => setActiveModal(null)}
       >
-        <Pressable style={styles.modalScrim} onPress={() => setActiveModal(null)}>
+        <View style={styles.modalScrim}>
+          {/* The tap-to-dismiss target is a layer *behind* the sheet, not a
+              wrapper around it. See `modalScrim` for why that distinction is
+              what makes the bag checklist scroll. */}
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss"
+            onPress={() => setActiveModal(null)}
+          />
+
           {/* A modal is its own window, so the screen's avoider does not reach
               in — and the hub code and the override reason are typed here. */}
           <KeyboardAvoider style={styles.modalAvoider}>
-            <Pressable style={styles.modalBody} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.modalBody}>
               {activeModal === 'handoff' && activeOrder && (
                 <HandoffVerify
                   order={activeOrder}
@@ -807,9 +817,9 @@ export default function HomeScreen() {
                   onCancel={() => setActiveModal(null)}
                 />
               )}
-            </Pressable>
+            </View>
           </KeyboardAvoider>
-        </Pressable>
+        </View>
       </Modal>
 
       <NotificationsSheet
@@ -1067,6 +1077,23 @@ const styles = StyleSheet.create({
   offerSubMeta: text.caption,
   offerActions: { flexDirection: 'row', gap: 12, marginTop: 10 },
 
+  /**
+   * The scrim is a plain view with the dismiss target layered underneath the
+   * sheet, rather than a `Pressable` wrapped around it.
+   *
+   * A `Pressable` around the sheet takes the JS responder on touch-down for
+   * every touch inside it, and `ScrollView` deliberately does not compete for
+   * it — `onStartShouldSetResponder` returns false there, so a scroll view
+   * yields to whatever is nested inside it. Granting the responder to an
+   * ancestor blocks the native scroll gesture for the rest of that drag, so
+   * the bag checklist in `QRScanner` was bounded, overflowing and completely
+   * immovable: a rider on a six-bag job could see five of them and had no way
+   * to reach the sixth, which is the one still waiting to be ticked off.
+   *
+   * Nothing above the sheet may be pressable for the same reason. `box-none`
+   * on the avoider is what lets a tap on the empty space reach the dismiss
+   * layer without putting a touch handler in the sheet's ancestry.
+   */
   modalScrim: { flex: 1, backgroundColor: tints.scrim, justifyContent: 'flex-end' },
   /**
    * The workflow sheets are bounded here, and they were not before.
@@ -1084,6 +1111,6 @@ const styles = StyleSheet.create({
    * sheet's own children can respond to rather than a crop. See `QRScanner`,
    * which now gives its viewfinder up to keep the checklist usable.
    */
-  modalAvoider: { flex: 1, justifyContent: 'flex-end' },
+  modalAvoider: { flex: 1, justifyContent: 'flex-end', pointerEvents: 'box-none' },
   modalBody: { width: '100%', maxHeight: '92%', flexShrink: 1 },
 });

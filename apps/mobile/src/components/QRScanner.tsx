@@ -31,6 +31,8 @@ export default function QRScanner({ order, onScanComplete, onCancel }: QRScanner
   const [mode, setMode] = useState<ScannerMode>('manual');
   const [status, setStatus] = useState('Check each bag against the list, then confirm.');
   const [permission, requestPermission] = useCameraPermissions();
+  // How much of the viewfinder survived the sheet's shrink. See `viewfinder`.
+  const [viewfinderHeight, setViewfinderHeight] = useState(0);
 
   // The camera fires continuously; ignore repeats of a code we just handled.
   const lastCodeRef = useRef<{ value: string; at: number } | null>(null);
@@ -117,6 +119,11 @@ export default function QRScanner({ order, onScanComplete, onCancel }: QRScanner
 
   const scannedCount = bags.filter((b) => b.scanned).length;
 
+  // The placeholder is an overlay, so dropping a line from it cannot change the
+  // box that was just measured — no layout loop. Unmeasured reads as roomy so
+  // the common case does not flash the line away and back.
+  const roomyViewfinder = viewfinderHeight === 0 || viewfinderHeight >= 212;
+
   return (
     <View style={styles.sheet}>
       <SheetHeader
@@ -142,7 +149,10 @@ export default function QRScanner({ order, onScanComplete, onCancel }: QRScanner
       />
 
       {/* Viewfinder */}
-      <View style={styles.viewfinder}>
+      <View
+        style={styles.viewfinder}
+        onLayout={(e) => setViewfinderHeight(e.nativeEvent.layout.height)}
+      >
         {mode === 'camera' && permission?.granted ? (
           <CameraView
             style={StyleSheet.absoluteFill}
@@ -156,11 +166,16 @@ export default function QRScanner({ order, onScanComplete, onCancel }: QRScanner
             <Text style={styles.viewfinderTitle}>
               {mode === 'manual' ? 'Checking the manifest' : 'Camera not enabled'}
             </Text>
-            <Text style={styles.viewfinderBody}>
-              {mode === 'manual'
-                ? 'Count the bags against the list below, then tick each one off.'
-                : 'Grant camera access to scan printed bag labels.'}
-            </Text>
+            {/* On a short sheet the box belongs to the icon, the title and the
+                status pill. This line is the first thing to go: in manual mode
+                it only restates what the pill underneath already says. */}
+            {roomyViewfinder && (
+              <Text style={styles.viewfinderBody}>
+                {mode === 'manual'
+                  ? 'Count the bags against the list below, then tick each one off.'
+                  : 'Grant camera access to scan printed bag labels.'}
+              </Text>
+            )}
           </View>
         )}
 
@@ -260,6 +275,18 @@ const styles = StyleSheet.create({
     // Gives its height up before the checklist does. A courier ticking twelve
     // bags off by hand needs the list far more than the framing corners.
     flexShrink: 2,
+    /**
+     * ...but not all of it. With nothing to stop it this collapsed to about
+     * 127 on a six-bag job — the framing corners closed up on each other and
+     * the status pill, which is anchored to the bottom of this same box, came
+     * down on top of the placeholder text.
+     *
+     * This floor is that pill's band plus an icon and a title. The checklist
+     * scrolls now, so it is the one that can afford to give: `bagList` has a
+     * floor of its own and the two together stay inside the sheet's cap on a
+     * short phone, which is the constraint that sets both numbers.
+     */
+    minHeight: 172,
     borderRadius: radius.xl,
     overflow: 'hidden',
     backgroundColor: '#121212',
@@ -275,6 +302,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 18,
+    // The status pill sits in the bottom 70 of this same box. Centre in what is
+    // left rather than behind it.
+    paddingBottom: 70,
     gap: 6,
   },
   viewfinderTitle: { ...text.strong, color: '#FFFFFF', marginTop: 8 },
@@ -332,8 +362,13 @@ const styles = StyleSheet.create({
    * sheet that overflowed the screen rather than bounding itself, the courier's
    * manifest was a two-row window that would not scroll on the one job where
    * scrolling it mattered.
+   *
+   * The floor is the smaller half of a pair: it and `viewfinder`'s have to add
+   * up to less than the room the sheet's cap leaves on the shortest phone we
+   * run on, or neither can be honoured and the confirm buttons get pushed off
+   * the bottom. It buys a row and a half, and the rest is a scroll away.
    */
-  bagList: { flexShrink: 1, minHeight: 148 },
+  bagList: { flexShrink: 1, minHeight: 124 },
   bagRow: {
     flexDirection: 'row',
     alignItems: 'center',
