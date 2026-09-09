@@ -223,6 +223,41 @@ const GATEWAY_MESSAGE =
   'The dispatch server is not answering just now. It may be starting back up — try again in a moment.';
 
 /**
+ * The sentence to put in front of a person when a request failed.
+ *
+ * Every screen in `apps/web` used to render `error.message` behind an
+ * `instanceof Error` check, which is true of everything a browser throws. So
+ * when the network dropped, a customer was shown `Failed to fetch` — Chrome
+ * describing its own plumbing, in a sentence that names nothing they did and
+ * suggests nothing they could do. The abort case produced `signal is aborted
+ * without reason`, which was worse.
+ *
+ * Three kinds of error reach these call sites, and only one of them should
+ * never be shown:
+ *
+ *  - {@link ApiError} and {@link TimeoutError} are ours, and their messages are
+ *    written to be read — the server's own `error` field, the gateway wording,
+ *    the timeout sentence.
+ *  - A plain `new Error('Sign in to use your wallet.')` is this codebase
+ *    throwing on purpose. `services/store.ts` alone does it fifteen times, and
+ *    those sentences are better than any fallback a caller could pass.
+ *  - A *subclass* of `Error` that we did not define is the platform describing
+ *    itself: `TypeError` from a failed `fetch`, `SyntaxError` from a body that
+ *    would not parse, `DOMException` from an abort. Those are the ones that
+ *    leaked, and the constructor check is what excludes them.
+ *
+ * The caller's fallback is written for the specific thing that failed, so it is
+ * a better answer than any of those anyway.
+ */
+export function failureMessage(error: unknown, fallback: string): string {
+  if (error instanceof ApiError || error instanceof TimeoutError) return error.message;
+  // Deliberately `constructor ===` rather than `instanceof`: the point is to
+  // admit `new Error(…)` while refusing everything derived from it.
+  if (error instanceof Error && error.constructor === Error && error.message) return error.message;
+  return fallback;
+}
+
+/**
  * Whether a failed request means the server was never reached.
  *
  * The distinction the offline mirror in `apps/web` turns on, and the one it

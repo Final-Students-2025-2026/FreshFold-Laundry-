@@ -25,6 +25,7 @@
 import { useState } from 'react';
 import { Plus, Trash2, X } from 'lucide-react';
 import type { Order } from '@freshfold/core';
+import { failureMessage } from '@freshfold/core';
 import * as store from '../../services/store';
 import ProductionRecord from './ProductionRecord';
 import { Badge, Button, Field, Input } from './ui';
@@ -116,9 +117,7 @@ export default function CheckInDrawer({ order, onClose, onCheckedIn }: CheckInDr
       onClose();
     } catch (failure) {
       setError(
-        failure instanceof Error && failure.message
-          ? failure.message
-          : 'That could not be recorded. Nothing has changed.'
+        failureMessage(failure, 'That could not be recorded. Nothing has changed.')
       );
       setBusy(false);
     }
