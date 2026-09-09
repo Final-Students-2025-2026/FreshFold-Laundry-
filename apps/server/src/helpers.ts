@@ -195,6 +195,29 @@ export function guard(
   handler: (req: Request, res: Response, next: NextFunction) => Promise<unknown>
 ): RequestHandler {
   return (req, res, next) => {
+    /**
+     * Whether the caller hung up before we answered.
+     *
+     * `close` fires on every response, successful or not — `writableFinished`
+     * is what tells the two apart. Recorded on `res.locals` so a handler that
+     * is part-way through can ask; see {@link callerGone}.
+     *
+     * Listened for here rather than per route because this wrapper is already
+     * the one thing every handler on this server passes through.
+     */
+    res.on('close', () => {
+      if (res.writableFinished) return;
+      res.locals.callerGone = true;
+
+      // Worth a line, because this is the shape of a server being outrun rather
+      // than a server being wrong. The desk polls three reads every five
+      // seconds against an eight-second client timeout, so once responses start
+      // arriving late the aborted ones pile up and compete with the requests
+      // that replaced them. A log full of these is that feedback loop, and it
+      // does not look like anything else in this file.
+      console.warn(`[api] caller left before the answer: ${req.method} ${req.originalUrl}`);
+    });
+
     handler(req, res, next).catch((error: unknown) => {
       const reference = randomBytes(4).toString('hex');
 
@@ -202,7 +225,7 @@ export function guard(
       // entry it points at says what was being attempted.
       console.error(`[api] unhandled error ${reference} on ${req.method} ${req.originalUrl}:`, error);
 
-      if (!res.headersSent) {
+      if (!res.headersSent && !callerGone(res)) {
         res.status(500).json({
           error: 'Something went wrong on our end. Please try again.',
           reference,
@@ -213,4 +236,39 @@ export function guard(
       }
     });
   };
+}
+
+/**
+ * Whether there is still somebody on the other end to receive an answer.
+ *
+ * ## What this is for, and what it deliberately is not for
+ *
+ * The web client gives a request eight seconds and then aborts it, and the desk
+ * re-asks for the whole board every five. Nothing here noticed: the handler ran
+ * to completion, projected the rows, serialised them and wrote the result to a
+ * socket with nobody behind it. On a free instance with a tenth of a CPU that
+ * is not merely waste — it is the loop that sustains the problem, because the
+ * work done for callers who have gone is what makes the next caller slow enough
+ * to leave too.
+ *
+ * So **reads** check this and stop. The saving is real: `GET /api/jobs` returns
+ * records whole, proof-of-service photographs included, and serialising a page
+ * of those for nobody is the most expensive thing this server can be asked to
+ * do.
+ *
+ * **Writes deliberately do not.** A supervisor confirming a wash has already
+ * washed the laundry; the transaction records something that happened in the
+ * world, and rolling it back because a mobile connection dropped on the way to
+ * the reply would lose the fact rather than undo it. The desk is built around
+ * exactly this: a confirmation that times out says the order *may well* have
+ * gone through and re-reads to find out, which is only honest as long as the
+ * server behaves this way. Making writes abortable would silently make that
+ * message a lie, so it is a decision recorded here rather than an oversight.
+ *
+ * The right answer for writes is an idempotency key, so a client can retry
+ * without asking a human whether it landed. That is a larger change and this is
+ * not it.
+ */
+export function callerGone(res: Response): boolean {
+  return res.locals.callerGone === true || res.destroyed;
 }

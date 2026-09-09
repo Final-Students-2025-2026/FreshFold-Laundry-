@@ -48,7 +48,15 @@ import { mailBookingConfirmation, mailReschedule } from '../setup-links';
 import { store } from '../store';
 import { charge, refund } from '../wallet';
 import { BOOKING_PURPOSE, verifyPaystackTransaction } from './integrations';
-import { accountBlocked, bookingView, bookingViews, guard, notFound, pageLimit } from '../helpers';
+import {
+  accountBlocked,
+  bookingView,
+  bookingViews,
+  callerGone,
+  guard,
+  notFound,
+  pageLimit,
+} from '../helpers';
 import { rateLimit } from '../rateLimit';
 
 /**
@@ -269,6 +277,12 @@ bookingsRouter.get(
             email: lister.account.email,
             phone: lister.account.phone ?? null,
           });
+
+    // Checked after the query rather than before it: the rows are one round
+    // trip, but `bookingViews` projects every one of them and `res.json`
+    // serialises the result, and those are the parts worth not doing for a
+    // caller who stopped listening eight seconds ago.
+    if (callerGone(res)) return;
 
     res.json(await bookingViews(jobs, lister));
   })

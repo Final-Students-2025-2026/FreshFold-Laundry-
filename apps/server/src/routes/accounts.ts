@@ -24,7 +24,7 @@ import { sanitize } from '../passwords';
 import { store, type StoredAccount } from '../store';
 import { charge, redeem, topUp, type WalletOutcome } from '../wallet';
 import { TOPUP_PURPOSE, verifyPaystackTransaction } from './integrations';
-import { guard, notFound, pageLimit } from '../helpers';
+import { callerGone, guard, notFound, pageLimit } from '../helpers';
 
 /**
  * Customer profiles and the payment ledger.
@@ -96,6 +96,8 @@ accountsRouter.get(
         max: MAX_PATRON_PAGE,
       }),
     });
+    if (callerGone(res)) return;
+
     res.json(accounts.map(sanitize));
   })
 );
