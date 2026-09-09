@@ -29,6 +29,28 @@
       // The debug console would swallow them into a pane nobody opens.
       "console": "integratedTerminal",
       "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "name": "Website",
+      "type": "chrome",
+      "request": "launch",
+
+      // Attaches to a Vite dev server that is already running — it does not
+      // start one. `npm run dev` (or `dev:web`) first, or Chrome opens on a
+      // refused connection.
+      //
+      // The port is Vite's configured 3000, and `strictPort` is not set in
+      // apps/web/vite.config.ts, so a busy 3000 silently moves the site to
+      // 3001 and this config then points at nothing. The port Vite actually
+      // took is in its terminal output.
+      "url": "http://localhost:3000",
+
+      // Vite's root, not the repo's. The browser asks for `/src/App.tsx` and
+      // this is what that leading slash is resolved against; set to the
+      // workspace root, every breakpoint in the site's own code would be
+      // looking one directory too high. Files from packages/core arrive as
+      // absolute `/@fs/` URLs and resolve without help.
+      "webRoot": "${workspaceFolder}/apps/web"
     }
   ]
 }
