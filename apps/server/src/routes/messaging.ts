@@ -15,7 +15,7 @@ import {
   type Caller,
 } from '../booking-access';
 import { store } from '../store';
-import { guard, nowLabel, notFound, pageLimit } from '../helpers';
+import { callerGone, guard, nowLabel, notFound, pageLimit } from '../helpers';
 
 /**
  * One conversation per job, visible from all three surfaces: the customer
@@ -99,7 +99,10 @@ messagesRouter.get(
         max: MAX_INBOX_PAGE,
       });
 
-      res.json(await store.messages.listRecent(limit));
+      const recent = await store.messages.listRecent(limit);
+      if (callerGone(res)) return;
+
+      res.json(recent);
       return;
     }
 
