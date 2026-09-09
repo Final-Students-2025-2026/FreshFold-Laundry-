@@ -9,6 +9,7 @@ import HowItWorks from './components/HowItWorks';
 import TargetCustomers from './components/TargetCustomers';
 import Contact from './components/Contact';
 import Footer from './components/Footer';
+import NotFound from './components/NotFound';
 import { Booking } from './types';
 import * as store from './services/store';
 import { ArrowUp } from 'lucide-react';
@@ -20,6 +21,7 @@ import Pending from './components/ui/Pending';
 import ConnectionBanner from './components/ui/ConnectionBanner';
 import { useScrollSpy, useScrolledPast, scrollToSection } from './components/ui/scroll';
 import { currentRoute, navigate, normaliseUrl, subscribeToRoute, type Route } from './route';
+import { deskSurface, sessionFrom, type DeskSession } from './desk';
 import { track } from './services/analytics';
 
 /**
@@ -79,6 +81,68 @@ const Deferred = ({
   </ErrorBoundary>
 );
 
+/**
+ * The supervisor desk, in whichever of its three states it is in.
+ *
+ * A `switch` returning an element rather than three sibling `{cond && …}`
+ * lines, and that is the whole point of the shape: the switch is over
+ * `DeskSurface`, so a surface with no case here is a function that can fall
+ * through and return `undefined`, which does not typecheck against the return
+ * annotation. The old form could silently render nothing for a state nobody had
+ * thought about — and did, for `checking`. See `desk.ts`.
+ */
+function DeskRoute({
+  session,
+  onClose,
+  onAuthenticated,
+  onSignOut,
+  activeBookings,
+  onUpdateBookings,
+}: {
+  session: DeskSession;
+  onClose: () => void;
+  onAuthenticated: () => void;
+  onSignOut: () => void;
+  activeBookings: Booking[];
+  onUpdateBookings: (updated: Booking[]) => void;
+}): React.ReactElement {
+  switch (deskSurface(session)) {
+    case 'pending':
+      // The stored token is being re-validated. On a production build that
+      // request carries the sixty-second cold-start budget the sleeping Render
+      // dyno needs, so this is a wait a supervisor can genuinely sit through —
+      // `Pending` stays blank for its first 260ms, so the warm case never sees it.
+      return <Pending label="Checking your desk session" />;
+
+    case 'login':
+      return (
+        <Deferred context="admin-login" label="Opening the desk" onDismiss={onClose}>
+          <AdminLogin
+            onAuthenticated={onAuthenticated}
+            onClose={onClose}
+            notice={
+              store.isAdminSessionExpired()
+                ? 'Your desk session ended, so the board stopped updating. Sign in to pick it back up.'
+                : undefined
+            }
+          />
+        </Deferred>
+      );
+
+    case 'dashboard':
+      return (
+        <Deferred context="admin-dashboard" label="Loading the board" onDismiss={onClose}>
+          <AdminDashboard
+            onClose={onClose}
+            onSignOut={onSignOut}
+            activeBookings={activeBookings}
+            onUpdateBookings={onUpdateBookings}
+          />
+        </Deferred>
+      );
+  }
+}
+
 /** The sections the header nav lights up, in page order. */
 const SECTIONS = [
   'hero',
@@ -133,14 +197,15 @@ export default function App() {
   const showScrollTop = useScrolledPast(500);
 
   /**
-   * Whether the desk session has been checked with the server yet.
+   * Where the desk session has got to, as one of three named states.
    *
-   * Three states, and the distinction matters: `null` means we have not asked,
-   * so the dashboard must not render even for a moment; `false` means asked and
-   * refused, so show the login. Rendering the dashboard first and hiding it
-   * afterwards would put the whole ledger on screen for a frame.
+   * The distinction matters in both directions. `checking` means we have not
+   * asked yet, so the dashboard must not render even for a moment — putting the
+   * ledger up and taking it down again would show it to whoever was looking. And
+   * `checking` is a state the route has to *draw*, which is what the old
+   * `boolean | null` made easy to forget: see `desk.ts`.
    */
-  const [isSupervisor, setIsSupervisor] = useState<boolean | null>(null);
+  const [deskSession, setDeskSession] = useState<DeskSession>('checking');
 
   // Re-validate the stored desk token whenever the admin route is entered. It
   // is checked against the server every time rather than trusted from storage —
@@ -149,15 +214,15 @@ export default function App() {
     if (!isAdminOpen) return;
 
     let cancelled = false;
-    setIsSupervisor(null);
+    setDeskSession('checking');
 
     store
       .restoreAdminSession()
       .then((supervisor) => {
-        if (!cancelled) setIsSupervisor(Boolean(supervisor));
+        if (!cancelled) setDeskSession(sessionFrom(supervisor));
       })
       .catch(() => {
-        if (!cancelled) setIsSupervisor(false);
+        if (!cancelled) setDeskSession('signed-out');
       });
 
     return () => {
@@ -179,7 +244,7 @@ export default function App() {
     if (!isAdminOpen) return;
 
     return store.subscribe(() => {
-      if (store.isAdminSessionExpired()) setIsSupervisor(false);
+      if (store.isAdminSessionExpired()) setDeskSession('signed-out');
     });
   }, [isAdminOpen]);
 
@@ -304,6 +369,14 @@ export default function App() {
   const handleBookingCreated = (newBooking: Booking) => {
     setActiveBookings((prev) => [newBooking, ...prev]);
   };
+
+  // Before anything else, and instead of everything else — an address that
+  // names nothing should not be dressed as the page it is not. Ahead of the
+  // Paystack branch only because it is the cheaper test; the two cannot both be
+  // true.
+  if (route.name === 'not-found') {
+    return <NotFound />;
+  }
 
   // Before anything else, and instead of everything else. The header, the
   // marketing sections and the chat bubble are all wrong in a checkout popup.
@@ -438,35 +511,21 @@ export default function App() {
       )}
 
       {/* Supervisor desk — behind a real login, not a URL fragment. */}
-      {isAdminOpen && isSupervisor === false && (
-        <Deferred context="admin-login" label="Opening the desk" onDismiss={closeOverlay}>
-          <AdminLogin
-            onAuthenticated={() => setIsSupervisor(true)}
-            onClose={closeOverlay}
-            notice={
-              store.isAdminSessionExpired()
-                ? 'Your desk session ended, so the board stopped updating. Sign in to pick it back up.'
-                : undefined
-            }
-          />
-        </Deferred>
-      )}
-
-      {isAdminOpen && isSupervisor === true && (
-        <Deferred context="admin-dashboard" label="Loading the board" onDismiss={closeOverlay}>
-          <AdminDashboard
-            onClose={closeOverlay}
-            onSignOut={() => {
-              void store.adminLogout();
-              setIsSupervisor(false);
-            }}
-            activeBookings={activeBookings}
-            onUpdateBookings={(updated) => {
-              setActiveBookings(updated);
-              store.writeBookings(updated);
-            }}
-          />
-        </Deferred>
+      {isAdminOpen && (
+        <DeskRoute
+          session={deskSession}
+          onClose={closeOverlay}
+          onAuthenticated={() => setDeskSession('signed-in')}
+          onSignOut={() => {
+            void store.adminLogout();
+            setDeskSession('signed-out');
+          }}
+          activeBookings={activeBookings}
+          onUpdateBookings={(updated) => {
+            setActiveBookings(updated);
+            store.writeBookings(updated);
+          }}
+        />
       )}
 
       {/*

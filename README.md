@@ -492,6 +492,27 @@ every 20 seconds. That is roughly four to six billed calls per job.
 
 ### The dispatch desk
 
+**It opens at `/admin`, and nothing on the site links to it.**
+
+That is deliberate — a staff console has no business advertising itself in a
+customer's header or footer — but the URL then lives only in whoever's head it
+was last in, so it is written down here. `/#admin` is a permanent alias and
+normalises to the path form on arrival. Case does not matter.
+
+The password is the security boundary, not the obscurity: the desk is behind
+`AdminLogin` either way, and the seeded account is the one under **A fresh
+install has no jobs** above. In development the startup banner prints the desk
+address and password it used.
+
+A mistyped address now says so rather than quietly drawing the marketing page —
+see `apps/web/src/components/NotFound.tsx` for why that is worth a screen of its
+own. To ask a *deployment* whether the desk is still there:
+
+```bash
+npm run smoke --workspace @freshfold/web
+```
+
+
 A courier writing to dispatch used to get an answer in three seconds, composed
 on their own phone: a `setTimeout` picked one of four sentences — "Copy that.
 Operational details synchronized with the Admin Dashboard." — so the console
@@ -545,13 +566,33 @@ less machinery than it would replace.
 | `npm run lint` | `tsc --noEmit` across every workspace |
 | `npm run check` | The assertion suites only |
 | `npm test` | Both |
+| `npm run smoke -w @freshfold/web` | Asks a *deployed* site whether the desk is still there. Not part of `npm test` |
 
 What is covered: the pricing, membership and loyalty arithmetic
 (`packages/core/src/money.check.ts`), calendar dates, the address book, phone
 and email rules (`details.check.ts`), the courier's job assignment
 (`apps/mobile/src/store/workload.check.ts`) and the bag scanner (`scan.check.ts`).
-That is deliberately the pure-function core — the money and the dispatch rules —
-rather than the routes or the screens.
+That is mostly the pure-function core — the money and the dispatch rules.
+
+The website has two suites of its own, and they are here because of a specific
+bug rather than for symmetry. `apps/web/src/route.check.ts` covers which address
+opens which screen; `desk.check.ts` covers the supervisor desk's session gate,
+led by the assertion that no state renders *nothing*. That gate once had three
+states and handled two, so the desk drew an empty overlay over the marketing
+page for the length of a request — which looks exactly like the site working,
+and was reported as the desk having disappeared. It type-checked, it reviewed
+cleanly, and it shipped, because nothing in this app ran any of its behaviour.
+
+Neither suite is a browser: they exercise the logic that decides what renders,
+not the rendering. What that logic hands to React is still only checked by
+opening it.
+
+**`npm run smoke --workspace @freshfold/web`** is separate and not part of
+`npm test`, because it talks to a live deployment — a suite that goes red when
+Render is asleep is one people stop reading. It asks a deployed site whether the
+desk route is served, whether the JavaScript actually out there contains the
+desk, and whether the API behind it answers. Point it somewhere else with
+`-- https://…`.
 
 The two builds run `tsc --noEmit` before they emit anything. That is not
 redundant with `npm run lint`: Vite and esbuild both strip types without checking
