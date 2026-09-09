@@ -102,6 +102,23 @@ export default defineConfig(({ command, mode }) => {
     },
     server: {
       port: 3000,
+      /**
+       * Fail on a busy 3000 rather than quietly moving to 3001.
+       *
+       * Vite's default is to walk up until it finds a free port, which is the
+       * friendlier behaviour for a site that is only ever opened by hand. This
+       * one is not: `.vscode/launch.json` points a debugger at 3000, the rider
+       * and customer apps derive their own address from a fixed port, and a
+       * second `npm run dev` started in a forgotten terminal is a normal way to
+       * spend an afternoon. Every one of those fails as something else — a
+       * blank tab, an app that cannot reach the API, edits that never appear —
+       * because the port moved and only one line of terminal output said so.
+       *
+       * The cost is that a genuinely occupied 3000 now stops the dev server
+       * instead of working around it. That is the point: the occupant is
+       * almost always the copy you forgot about.
+       */
+      strictPort: true,
       // Everything under /api belongs to the dispatch server, which the rider
       // app also talks to. Proxying keeps the browser on one origin in dev.
       proxy: {

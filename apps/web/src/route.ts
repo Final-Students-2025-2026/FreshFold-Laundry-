@@ -36,7 +36,7 @@
  * history entry somebody would have to press Back through twice.
  */
 
-export type RouteName = 'home' | 'portal' | 'admin' | 'paystack-success';
+export type RouteName = 'home' | 'portal' | 'admin' | 'paystack-success' | 'not-found';
 
 export interface Route {
   name: RouteName;
@@ -55,9 +55,10 @@ export interface Route {
 }
 
 const HOME: Route = { name: 'home', bookingId: null, setupToken: null };
+const NOT_FOUND: Route = { name: 'not-found', bookingId: null, setupToken: null };
 
 /** The path each route lives at. `home` is the site root. */
-const PATHS: Record<Exclude<RouteName, 'home'>, string> = {
+const PATHS: Record<Exclude<RouteName, 'home' | 'not-found'>, string> = {
   portal: '/portal',
   admin: '/admin',
   'paystack-success': '/paystack-success',
@@ -81,7 +82,21 @@ function routeFrom(name: RouteName, params: URLSearchParams): Route {
 export function currentRoute(): Route {
   const { pathname, search, hash } = window.location;
 
-  const path = pathname.replace(/\/+$/, '') || '/';
+  /*
+   * Lowercased, because a path is typed by a person.
+   *
+   * The desk is reached by someone typing `/admin` into the bar from memory,
+   * and `/Admin` matched nothing, fell through to `home` and rendered the
+   * marketing page — the same thing the site shows when the URL is right, so
+   * there was no way to tell a capital letter from a desk that had stopped
+   * working. The hash branch below has always lowercased its name; this is the
+   * two halves of one function agreeing.
+   *
+   * Safe to fold blindly: every path in `PATHS` is lowercase already, and
+   * nothing downstream reads the path again — `bookingId` and `setup` come out
+   * of the query string, which is left exactly as it was sent.
+   */
+  const path = pathname.replace(/\/+$/, '').toLowerCase() || '/';
   for (const [name, routePath] of Object.entries(PATHS)) {
     if (path === routePath) {
       return routeFrom(name as RouteName, new URLSearchParams(search));
@@ -102,12 +117,30 @@ export function currentRoute(): Route {
     }
   }
 
-  return HOME;
+  /*
+   * An address that named nothing.
+   *
+   * This used to be `HOME`, so every wrong URL drew the marketing page — the
+   * same thing a *right* URL draws. `/admni` for `/admin`, or a capital before
+   * the fold above, was therefore indistinguishable from the desk having been
+   * taken away, and the only person who could tell them apart was whoever knew
+   * what the site looks like when it is working. That is how a typo gets
+   * reported as an outage.
+   *
+   * The root itself stays `home`, and so does any in-page anchor hanging off
+   * it: `#services` and `#contact` are how the footer's links work, and a
+   * fragment that names no route is a position on the page rather than a wrong
+   * address. Only a *path* nobody claimed is not found.
+   */
+  return path === '/' ? HOME : NOT_FOUND;
 }
 
 /** The canonical URL for a route, path form. */
 export function href(route: Route): string {
-  if (route.name === 'home') return '/';
+  // Neither has an address of its own: `home` *is* the root, and `not-found` is
+  // the absence of a match rather than a place, so the honest URL for both is
+  // the root. Nothing navigates *to* `not-found` — it is only ever arrived at.
+  if (route.name === 'home' || route.name === 'not-found') return '/';
 
   const params = new URLSearchParams();
   if (route.bookingId) params.set('bookingId', route.bookingId);
@@ -126,7 +159,7 @@ export function href(route: Route): string {
  * `subscribeToRoute` listens for both it and the browser's own.
  */
 export function navigate(
-  name: RouteName,
+  name: Exclude<RouteName, 'not-found'>,
   options: { bookingId?: string | null; setupToken?: string | null; replace?: boolean } = {}
 ): void {
   const route: Route = {

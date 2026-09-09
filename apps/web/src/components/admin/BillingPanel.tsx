@@ -23,6 +23,7 @@
 import { useState } from 'react';
 import { FileText, Plus, Trash2 } from 'lucide-react';
 import type { Invoice, InvoiceStatus } from '@freshfold/core';
+import { failureMessage } from '@freshfold/core';
 import * as store from '../../services/store';
 import OrderRef from './OrderRef';
 import PaneHeader, { ResourceBanner } from './PaneHeader';
@@ -68,7 +69,7 @@ export default function BillingPanel({
     try {
       await work(token);
     } catch (e) {
-      onFailed(e instanceof Error ? e.message : 'That could not be recorded.');
+      onFailed(failureMessage(e, 'That could not be recorded.'));
     } finally {
       setBusy(false);
     }

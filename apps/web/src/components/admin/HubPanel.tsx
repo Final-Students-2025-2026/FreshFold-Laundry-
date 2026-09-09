@@ -50,7 +50,7 @@ import {
   Sparkles,
   WashingMachine,
 } from 'lucide-react';
-import type { Booking, JobStatus, Order } from '@freshfold/core';
+import { ApiError, TimeoutError, type Booking, type JobStatus, type Order } from '@freshfold/core';
 import * as store from '../../services/store';
 import HandoffCode from '../HandoffCode';
 import CheckInDrawer from './CheckInDrawer';
@@ -227,11 +227,36 @@ export default function HubPanel({
       // be pulled across for it to follow.
       onConfirmed(`${order.orderNumber} — ${label.toLowerCase()}, confirmed`);
     } catch (e) {
-      onFailed(
-        e instanceof Error
-          ? e.message
-          : `${order.orderNumber} could not be moved. It is still where it was.`,
-      );
+      if (e instanceof TimeoutError) {
+        /**
+         * A timeout is not a refusal, and saying "it is still where it was"
+         * here was a guess that was usually wrong.
+         *
+         * The server does not check whether the caller is still listening —
+         * there is no `req.aborted` anywhere in `apps/server` — so the
+         * transaction commits whether or not the reply reaches us. On the link
+         * this desk runs over that happens often enough to matter: the stage
+         * moved, the audit line was written, and `STATUS_SCRIPT` already sent
+         * the customer the message telling them their laundry was washed.
+         *
+         * So the desk says what it actually knows, and re-reads rather than
+         * asserting. The board answers the question a moment later.
+         */
+        onFailed(
+          `${order.orderNumber} — no answer in time. It may well have gone through; ` +
+            `the board is re-reading to find out.`,
+        );
+        orders.refresh();
+      } else {
+        onFailed(
+          // Only errors that carry a sentence written for a person. Anything
+          // else is a platform string — `Failed to fetch` and friends — and the
+          // fallback below was written for exactly this.
+          e instanceof ApiError
+            ? e.message
+            : `${order.orderNumber} could not be moved. It is still where it was.`,
+        );
+      }
     } finally {
       setConfirming(null);
     }

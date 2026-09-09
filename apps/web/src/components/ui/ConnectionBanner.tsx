@@ -1,21 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { CloudOff, LogIn, RefreshCw } from 'lucide-react';
+import { CloudOff, Clock, LogIn, RefreshCw } from 'lucide-react';
 import * as store from '../../services/store';
-
-/**
- * How long to let the first request answer before believing it failed.
- *
- * `store.isOnline()` starts `false` and only turns true when a pull comes
- * back, so between mount and that first reply the honest answer is "not known
- * yet" — but the flag cannot say that, and rendering straight off it told
- * every visitor the connection was gone for as long as the first request took.
- *
- * Long enough to cover a normal round trip, short enough that somebody who
- * really is offline is not left guessing. Deliberately *not* scaled to a
- * free-tier cold start: a server that has not answered in three seconds is one
- * the page genuinely cannot reach yet, and saying so then is correct.
- */
-const SETTLE_MS = 3_000;
 
 /**
  * Says out loud what the store has always quietly done.
@@ -33,7 +18,7 @@ const SETTLE_MS = 3_000;
  * sent, which is a different claim, and the difference is a customer waiting
  * in for a rider who was never dispatched.
  *
- * Three states, because they need different words:
+ * Four states, because they need different words:
  *
  *  - **Offline with nothing queued** — a warning. Nothing is lost; nothing is
  *    in flight either.
@@ -45,41 +30,27 @@ const SETTLE_MS = 3_000;
  *    the one state the strip asks for an action instead of reporting one. It
  *    exists because the queue now holds these writes rather than discarding
  *    them; before, the promise above was made and then quietly broken.
+ *  - **Waking** — the gateway is answering instead of the server, which on the
+ *    free plan means it is booting and will be along in under a minute. Reading
+ *    that as a dropped connection sent people to check a network that was fine.
  *
  * Nothing shows when the connection is fine and the queue is empty, which is
- * almost always. A permanent "you are online" badge is noise that trains
- * people to stop reading the strip it lives in.
+ * almost always — nor before anything is known, which is the state this used to
+ * render as "no connection" for as long as the first request took.
+ *
+ * A permanent "you are online" badge is noise that trains people to stop
+ * reading the strip it lives in.
  */
 export default function ConnectionBanner() {
-  const [online, setOnline] = useState(() => store.isOnline());
+  const [state, setState] = useState(() => store.connectionState());
   const [pending, setPending] = useState(() => store.pendingWriteCount());
   const [blocked, setBlocked] = useState(() => store.isQueueBlockedOnAuth());
 
-  /**
-   * Whether anything is known yet.
-   *
-   * True as soon as a pull succeeds, or once `SETTLE_MS` has passed without
-   * one. Until then this component says nothing at all, because it has nothing
-   * to say. If the store is already online at mount — a remount later in the
-   * session — there is nothing to wait for.
-   */
-  const [settled, setSettled] = useState(() => store.isOnline());
-
-  useEffect(() => {
-    if (settled) return;
-    const timer = setTimeout(() => setSettled(true), SETTLE_MS);
-    return () => clearTimeout(timer);
-  }, [settled]);
-
   useEffect(() => {
     const sync = () => {
-      const nowOnline = store.isOnline();
-      setOnline(nowOnline);
+      setState(store.connectionState());
       setPending(store.pendingWriteCount());
       setBlocked(store.isQueueBlockedOnAuth());
-      // A reply is the thing worth waiting for; the timer is only the fallback
-      // for when none comes.
-      if (nowOnline) setSettled(true);
     };
 
     // The store notifies on every poll and every queue movement, which covers
@@ -102,9 +73,13 @@ export default function ConnectionBanner() {
     };
   }, []);
 
+  const online = state === 'online';
+  const waking = state === 'waking';
+
   // Blocked is not syncing: the writes are held for a sign-in, not in flight.
   const syncing = online && pending > 0 && !blocked;
-  const hidden = (online && pending === 0) || !settled;
+  // `unknown` says nothing: no attempt has come back yet, either way.
+  const hidden = state === 'unknown' || (online && pending === 0);
 
   /**
    * Tell the rest of the page how tall this is.
@@ -144,7 +119,7 @@ export default function ConnectionBanner() {
       observer.disconnect();
       root.style.removeProperty('--banner-h');
     };
-  }, [hidden, syncing, blocked, pending]);
+  }, [hidden, syncing, blocked, waking, pending]);
 
   if (hidden) return null;
 
@@ -168,6 +143,8 @@ export default function ConnectionBanner() {
           <RefreshCw aria-hidden="true" className="h-3.5 w-3.5 shrink-0 animate-spin" />
         ) : blocked ? (
           <LogIn aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+        ) : waking ? (
+          <Clock aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
         ) : (
           <CloudOff aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
         )}
@@ -180,6 +157,17 @@ export default function ConnectionBanner() {
             <>
               Your session ended. {pending} {pending === 1 ? 'change is' : 'changes are'} saved on
               this device and will send when you sign in again.
+            </>
+          ) : waking ? (
+            <>
+              The dispatch server is starting up — this takes about a minute.
+              {pending > 0 ? (
+                <>
+                  {' '}
+                  {pending} {pending === 1 ? 'change is' : 'changes are'} saved and will send as
+                  soon as it answers.
+                </>
+              ) : null}
             </>
           ) : pending > 0 ? (
             <>

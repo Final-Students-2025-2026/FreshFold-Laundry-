@@ -1,0 +1,116 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      // The one task the NPM Scripts view cannot replace.
+      //
+      // Every script in this repo is already one click away in Explorer → NPM
+      // Scripts, so a task per script would be a second, staler copy of that
+      // list. This one earns its place by being the `preLaunchTask` of the
+      // "Website" debug config: a launch config can only wait on a *task*, and
+      // waiting correctly on a dev server needs the background matcher below.
+      "label": "dev:web",
+      "type": "npm",
+      "script": "dev:web",
+      "isBackground": true,
+
+      // Reveal it, don't hide it. With `strictPort` now set in
+      // apps/web/vite.config.ts, a busy 3000 stops the dev server outright
+      // rather than drifting to 3001, and this terminal is the only place
+      // that error is written.
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "dev"
+      },
+
+      "problemMatcher": {
+        "owner": "vite",
+
+        // Deliberately inert. `vite` serves without type-checking — `npm run
+        // lint` in apps/web is what runs tsc — so there is nothing here to
+        // parse into the Problems panel. A pattern is required all the same,
+        // because `background` lives inside a matcher, and that is the whole
+        // reason this block exists.
+        "pattern": {
+          "regexp": "^([^\\s].*)\\((\\d+|\\d+,\\d+)\\):\\s*(.*)$",
+          "file": 1,
+          "location": 2,
+          "message": 3
+        },
+
+        // How VS Code knows a server that never exits is nonetheless ready.
+        // Without this it waits for the process to end, the debug session
+        // never starts, and the only symptom is nothing happening.
+        //
+        // Matched against Vite 6's real output: `VITE v6.4.3  ready in 884 ms`
+        // on boot, and `restarting server...` / `server restarted.` when
+        // vite.config.ts is edited. Kept to single unbroken words because the
+        // line arrives wrapped in ANSI colour codes, which sit between `VITE`
+        // and its version number.
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "restarting|VITE",
+          "endsPattern": "ready in|server restarted"
+        }
+      }
+    },
+    {
+      // The whole stack, on Ctrl+Shift+B.
+      //
+      // Same `npm run dev` you would type, with one property that matters: a
+      // task runs in a terminal VS Code owns, so it outlives whatever started
+      // it and Ctrl+C stops the tree from the top. A dev server started by
+      // something else — an agent, a script — leaves `concurrently`'s
+      // grandchildren holding 3000 and 4000 after the parent is killed, and
+      // the next start then fails on a port with no visible owner.
+      //
+      // Marked as the default build task because it is the thing this repo is
+      // usually asked to do. There is nothing to compile: `npm run build` is a
+      // deploy step, and typechecking is `npm run check`.
+      "label": "dev",
+      "type": "npm",
+      "script": "dev",
+      "isBackground": true,
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+
+      // Its own terminal, kept open. `concurrently` interleaves two servers
+      // here under `[server]` and `[web]` prefixes, and both the seeded desk
+      // login and the port Vite settled on are printed once, at the top.
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "dev"
+      },
+
+      "problemMatcher": {
+        "owner": "freshfold",
+
+        // Inert, for the reason given on the task above: nothing in this
+        // output is a compiler diagnostic.
+        "pattern": {
+          "regexp": "^([^\\s].*)\\((\\d+|\\d+,\\d+)\\):\\s*(.*)$",
+          "file": 1,
+          "location": 2,
+          "message": 3
+        },
+
+        // Nothing waits on this task, so the matcher only decides when the
+        // spinner in the status bar stops — but it is worth pointing at the
+        // right line anyway. The dispatch server is the slower half: Vite was
+        // ready in 903ms on a run where the server had still to connect to
+        // Supabase and seed. So the banner from apps/server/src/index.ts is
+        // what means "all of it is up", and a spinner that never settles
+        // means the server did not start.
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "rerunning|restarting",
+          "endsPattern": "listening on http"
+        }
+      }
+    }
+  ]
+}

@@ -16,7 +16,7 @@ import { store } from './store';
 import { developmentCredentials, ensureSeeded, SeedError } from './seed';
 import { startHubCycle } from './hub';
 import { startRecurringCycle } from './recurring-cycle';
-import { guard } from './helpers';
+import { callerGone, guard, pageLimit } from './helpers';
 import { securityHeaders } from './headers';
 import { requireSupervisor } from './auth';
 import { adminRouter } from './routes/admin';
@@ -245,8 +245,26 @@ app.use('/api/paystack', paystackRouter);
 app.get(
   '/api/jobs',
   requireSupervisor,
-  guard(async (_req, res) => {
-    res.json(await store.jobs.list());
+  guard(async (req, res) => {
+    /**
+     * Bounded harder than the board it shadows.
+     *
+     * `GET /api/bookings` returns a projection; this returns the record whole,
+     * proof-of-service photographs and all, so a page here is worth orders of
+     * magnitude more bytes than a page of the same length anywhere else. Two
+     * hundred base64 images is already a response no phone on Kumasi mobile
+     * data will finish inside the client's timeout.
+     */
+    const jobs = await store.jobs.list({
+      limit: pageLimit(req.query.limit, { fallback: 200, max: 500 }),
+    });
+
+    // The most valuable one of these on the whole server. Serialising a page of
+    // unprojected records — base64 photographs and all — is the single most
+    // expensive thing it does, and doing it for nobody is the worst version.
+    if (callerGone(res)) return;
+
+    res.json(jobs);
   })
 );
 

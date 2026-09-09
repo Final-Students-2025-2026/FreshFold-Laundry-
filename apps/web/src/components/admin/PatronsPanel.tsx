@@ -24,7 +24,7 @@
 
 import { useEffect, useState } from 'react';
 import { Award, Ban, Minus, Plus, Trash2, Undo2, Users, X } from 'lucide-react';
-import { ApiError, type UserAccount } from '@freshfold/core';
+import { failureMessage, ApiError, type UserAccount } from '@freshfold/core';
 import PaneHeader, { ResourceBanner } from './PaneHeader';
 import type { DeskResource } from './useDeskResource';
 import { Badge, Button, EmptyState, Field, Input, Panel, TableHead } from './ui';
@@ -106,11 +106,7 @@ export default function PatronsPanel({
       setBlocking(null);
       setBlockReason('');
     } catch (err) {
-      setError(
-        err instanceof ApiError || err instanceof Error
-          ? err.message
-          : 'That did not work. Try again.',
-      );
+      setError(failureMessage(err, 'That did not work. Try again.'));
     } finally {
       setBusyEmail(null);
     }
