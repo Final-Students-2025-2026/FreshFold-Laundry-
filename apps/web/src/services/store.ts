@@ -1381,7 +1381,19 @@ export function clearCurrentUser(): void {
  * review, not as a rider on this one.
  */
 export function readAdminToken(): string | null {
-  return sessionStorage.getItem(KEYS.adminToken);
+  // Guarded like every other reader in this file. Storage is not always there
+  // to be read — a locked-down browser throws on the *access*, not on the value
+  // — and an exception here is thrown from the one call that decides whether the
+  // desk route can draw anything at all. `restoreAdminSession` is `async`, so
+  // today that lands in `App`'s `.catch` and shows the sign-in form, which is
+  // the right screen by luck rather than by intent. Returning `null` says the
+  // same thing deliberately: no token we can read is no session.
+  try {
+    return sessionStorage.getItem(KEYS.adminToken);
+  } catch {
+    /* see writeLocal */
+    return null;
+  }
 }
 
 export function readAdminSupervisor(): SupervisorProfile | null {
