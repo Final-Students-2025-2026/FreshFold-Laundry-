@@ -26,15 +26,32 @@ import { Button, Divider } from './ui';
 interface BagScannerProps {
   bags: LaundryBag[];
   reference: string;
+  /** Codes checked off on an earlier pass, so a re-open resumes rather than resets. */
+  verified?: string[];
   onConfirm: (bags: LaundryBag[]) => void;
   onCancel?: () => void;
 }
 
 type ScannerMode = 'checklist' | 'camera';
 
-export default function BagScanner({ bags: initial, reference, onConfirm, onCancel }: BagScannerProps) {
+export default function BagScanner({
+  bags: initial,
+  reference,
+  verified = [],
+  onConfirm,
+  onCancel,
+}: BagScannerProps) {
   const { t } = useT();
-  const [bags, setBags] = useState<LaundryBag[]>(() => initial.map((bag) => ({ ...bag, scanned: false })));
+  /**
+   * The sheet is a `Modal`, which unmounts its children on close, so every
+   * re-open is a fresh mount. Seeding from the codes already recorded is what
+   * keeps a count the customer has confirmed from reading back as zero — the
+   * manifest itself is re-derived from the booking and carries no `scanned`
+   * flag of its own.
+   */
+  const [bags, setBags] = useState<LaundryBag[]>(() =>
+    initial.map((bag) => ({ ...bag, scanned: verified.includes(bag.qrCode) }))
+  );
   const [mode, setMode] = useState<ScannerMode>('checklist');
   /**
    * The line under the viewfinder. `null` is the opening hint rather than a copy

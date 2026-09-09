@@ -21,7 +21,7 @@ import {
   RefreshCcw,
   Star,
 } from 'lucide-react-native';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -132,10 +132,22 @@ export default function OrderDetailScreen() {
     void loadClaims();
   }, [loadClaims]);
 
-  // A deep link opens its sheet once the record is in the mirror.
+  /**
+   * A deep link opens its sheet once the record is in the mirror — and once only.
+   *
+   * The action stays in the route for the life of the screen, and `booking` is a
+   * new object on every poll, so without a latch this effect re-fires every four
+   * seconds and re-opens a sheet the customer has already closed or confirmed.
+   * Keying the latch on the value rather than a bare flag lets a later
+   * navigation to the same screen ask for a different sheet.
+   */
+  const openedAction = useRef<string | null>(null);
+
   useEffect(() => {
     if (!booking || !params.action) return;
+    if (openedAction.current === params.action) return;
     if (params.action === 'scan' || params.action === 'issue' || params.action === 'sign') {
+      openedAction.current = params.action;
       setSheet(params.action);
     }
   }, [booking, params.action]);
@@ -743,6 +755,7 @@ export default function OrderDetailScreen() {
         <BagScanner
           bags={bags}
           reference={booking.id}
+          verified={verified}
           onCancel={() => setSheet(null)}
           onConfirm={(scanned) => {
             verifyBags(booking.id, scanned);
