@@ -75,6 +75,18 @@ app.disable('x-powered-by');
  * bucket per request, which is worse than no limiter at all. Set `TRUST_PROXY`
  * to the number of proxies in front of this process (usually `1`), or to a
  * value Express understands such as `loopback`.
+ *
+ * **Count the proxies that cannot be bypassed, not the ones in the longest
+ * path.** On Render that is `1` — its own load balancer — and it stays `1`
+ * even though website traffic reaches the same service through a second hop,
+ * because `vercel.json` rewrites `/api` to a host that is also reachable
+ * directly. A caller who goes straight to `onrender.com` presents whatever
+ * chain they like, so raising this to `2` would trust an entry they wrote and
+ * hand them a fresh rate-limit bucket per request. The right number is the one
+ * that is true for every path into this process, and the cost of that — every
+ * website visitor resolving to the Vercel edge and sharing one bucket — is
+ * paid in `rateLimit.ts` by `SHARED_PROXY_CLIENTS`, which subdivides a shared
+ * address without ever believing it.
  */
 if (process.env.TRUST_PROXY) {
   const hops = Number(process.env.TRUST_PROXY);
