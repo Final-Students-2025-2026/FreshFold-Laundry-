@@ -14,10 +14,10 @@
       "script": "dev:web",
       "isBackground": true,
 
-      // Reveal it, don't hide it. `strictPort` is not set in
-      // apps/web/vite.config.ts, so a busy 3000 moves the site to 3001 with
-      // only a line of terminal output to say so — and the debug config is
-      // pointed at 3000. The terminal is where that is visible.
+      // Reveal it, don't hide it. With `strictPort` now set in
+      // apps/web/vite.config.ts, a busy 3000 stops the dev server outright
+      // rather than drifting to 3001, and this terminal is the only place
+      // that error is written.
       "presentation": {
         "reveal": "always",
         "panel": "dedicated",
@@ -52,6 +52,63 @@
           "activeOnStart": true,
           "beginsPattern": "restarting|VITE",
           "endsPattern": "ready in|server restarted"
+        }
+      }
+    },
+    {
+      // The whole stack, on Ctrl+Shift+B.
+      //
+      // Same `npm run dev` you would type, with one property that matters: a
+      // task runs in a terminal VS Code owns, so it outlives whatever started
+      // it and Ctrl+C stops the tree from the top. A dev server started by
+      // something else — an agent, a script — leaves `concurrently`'s
+      // grandchildren holding 3000 and 4000 after the parent is killed, and
+      // the next start then fails on a port with no visible owner.
+      //
+      // Marked as the default build task because it is the thing this repo is
+      // usually asked to do. There is nothing to compile: `npm run build` is a
+      // deploy step, and typechecking is `npm run check`.
+      "label": "dev",
+      "type": "npm",
+      "script": "dev",
+      "isBackground": true,
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+
+      // Its own terminal, kept open. `concurrently` interleaves two servers
+      // here under `[server]` and `[web]` prefixes, and both the seeded desk
+      // login and the port Vite settled on are printed once, at the top.
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "dev"
+      },
+
+      "problemMatcher": {
+        "owner": "freshfold",
+
+        // Inert, for the reason given on the task above: nothing in this
+        // output is a compiler diagnostic.
+        "pattern": {
+          "regexp": "^([^\\s].*)\\((\\d+|\\d+,\\d+)\\):\\s*(.*)$",
+          "file": 1,
+          "location": 2,
+          "message": 3
+        },
+
+        // Nothing waits on this task, so the matcher only decides when the
+        // spinner in the status bar stops — but it is worth pointing at the
+        // right line anyway. The dispatch server is the slower half: Vite was
+        // ready in 903ms on a run where the server had still to connect to
+        // Supabase and seed. So the banner from apps/server/src/index.ts is
+        // what means "all of it is up", and a spinner that never settles
+        // means the server did not start.
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "rerunning|restarting",
+          "endsPattern": "listening on http"
         }
       }
     }

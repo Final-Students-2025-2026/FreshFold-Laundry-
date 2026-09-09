@@ -40,18 +40,15 @@
       // reason that file exists.
       //
       // It does not notice a server you started yourself in a terminal, only
-      // one it started as this task. So with `npm run dev` already running,
-      // this launches a *second* Vite; `strictPort` is not set in
-      // apps/web/vite.config.ts, so that one takes 3001 without complaint
-      // while the debugger below attaches to the original on 3000. Confusing
-      // rather than broken — breakpoints still bind, because both servers are
-      // serving the same files — but the task's terminal is then reporting a
-      // port nothing is looking at. Stop the terminal one first, or drop this
-      // line and start the server by hand.
+      // one it started as this task. So with the `dev` task or `npm run dev`
+      // already running, this tries to start a second Vite on a port the
+      // first one holds — and since `strictPort` is set in
+      // apps/web/vite.config.ts, that fails outright and the debug session
+      // never opens. Loud, and the right way round: the alternative was a
+      // second server on 3001 while the debugger attached to the original.
+      // Stop the running one first, or drop this line and start it by hand.
       "preLaunchTask": "dev:web",
 
-      // Vite's configured port. If the task's terminal says 3001, something
-      // else already has 3000.
       "url": "http://localhost:3000",
 
       // Vite's root, not the repo's. The browser asks for `/src/App.tsx` and
