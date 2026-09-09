@@ -48,7 +48,7 @@ import { mailBookingConfirmation, mailReschedule } from '../setup-links';
 import { store } from '../store';
 import { charge, refund } from '../wallet';
 import { BOOKING_PURPOSE, verifyPaystackTransaction } from './integrations';
-import { accountBlocked, bookingView, bookingViews, guard, notFound } from '../helpers';
+import { accountBlocked, bookingView, bookingViews, guard, notFound, pageLimit } from '../helpers';
 import { rateLimit } from '../rateLimit';
 
 /**
@@ -66,6 +66,19 @@ import { rateLimit } from '../rateLimit';
  * `../booking-access` for who qualifies as whom.
  */
 export const bookingsRouter = Router();
+
+/**
+ * How much of the board one read returns.
+ *
+ * Matched to the desk inbox rather than the audit trail, because this is the
+ * same kind of read: everything a supervisor has open in front of them, pulled
+ * whole every five seconds. Two thousand is well past any plausible working
+ * ledger, so the ceiling is there to stop the query being unbounded rather than
+ * to ration anybody — and a desk that ever reaches it is one whose oldest jobs
+ * belong in a report, not on a live board.
+ */
+const DEFAULT_BOARD_PAGE = 500;
+const MAX_BOARD_PAGE = 2000;
 
 /**
  * How many collections one window can take.
@@ -236,9 +249,22 @@ bookingsRouter.get(
       return;
     }
 
+    /**
+     * Bounded for the desk, unbounded for a customer.
+     *
+     * Not an inconsistency: a customer's scope is their own orders, which is a
+     * handful and cannot grow without them placing them. The supervisor scope
+     * is the entire ledger, on a five-second poll, for as long as the business
+     * runs — the one read here whose cost has no ceiling.
+     */
+    const limit =
+      lister.kind === 'supervisor'
+        ? pageLimit(req.query.limit, { fallback: DEFAULT_BOARD_PAGE, max: MAX_BOARD_PAGE })
+        : undefined;
+
     const jobs =
       lister.kind === 'supervisor'
-        ? await store.jobs.list()
+        ? await store.jobs.list({ limit })
         : await store.jobs.list({
             email: lister.account.email,
             phone: lister.account.phone ?? null,

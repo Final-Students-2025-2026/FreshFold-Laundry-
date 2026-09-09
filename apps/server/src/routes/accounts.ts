@@ -24,7 +24,7 @@ import { sanitize } from '../passwords';
 import { store, type StoredAccount } from '../store';
 import { charge, redeem, topUp, type WalletOutcome } from '../wallet';
 import { TOPUP_PURPOSE, verifyPaystackTransaction } from './integrations';
-import { guard, notFound } from '../helpers';
+import { guard, notFound, pageLimit } from '../helpers';
 
 /**
  * Customer profiles and the payment ledger.
@@ -35,6 +35,16 @@ import { guard, notFound } from '../helpers';
  * `/api/auth/register`.
  */
 export const accountsRouter = Router();
+
+/**
+ * How many patrons one read of the table returns.
+ *
+ * The same page as the board and the inbox, for the same reason: the desk polls
+ * all three together every five seconds, so a ceiling on two of them and none
+ * on the third leaves the slowest request deciding whether the poll finishes.
+ */
+const DEFAULT_PATRON_PAGE = 500;
+const MAX_PATRON_PAGE = 2000;
 
 /**
  * Fields a client is allowed to write through this route.
@@ -76,8 +86,16 @@ function pickWritable(body: Partial<UserAccount>): Partial<WritableAccountFields
 accountsRouter.get(
   '/',
   requireSupervisor,
-  guard(async (_req, res) => {
-    const accounts = await store.accounts.list();
+  guard(async (req, res) => {
+    // Newest patrons first out of the database, oldest first on the way out —
+    // see `accounts.list`. The order this returns is unchanged; what changes is
+    // which end gets cut when there are more accounts than one page.
+    const accounts = await store.accounts.list({
+      limit: pageLimit(req.query.limit, {
+        fallback: DEFAULT_PATRON_PAGE,
+        max: MAX_PATRON_PAGE,
+      }),
+    });
     res.json(accounts.map(sanitize));
   })
 );

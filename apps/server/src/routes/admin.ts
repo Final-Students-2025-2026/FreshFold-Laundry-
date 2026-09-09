@@ -8,7 +8,7 @@ import { bearerToken, createSession, requireSupervisor, revokeSession } from '..
 import { hashPassword, needsRehash, verifySecret } from '../passwords';
 import { credentialLimit } from '../rateLimit';
 import { store, type StoredSupervisor, type SupervisorProfile } from '../store';
-import { guard } from '../helpers';
+import { guard, pageLimit } from '../helpers';
 
 /**
  * The supervisor desk.
@@ -107,14 +107,10 @@ adminRouter.get(
   '/audit',
   requireSupervisor,
   guard(async (req, res) => {
-    const asked = Number(req.query.limit);
-    // Floored because `?limit=10.5` reaches Postgres as a numeric it rounds on
-    // its own — a page size decided by rounding rules is not one anybody asked
-    // for. Anything unparseable, negative or zero takes the default.
-    const limit =
-      Number.isFinite(asked) && asked >= 1
-        ? Math.min(Math.floor(asked), MAX_AUDIT_PAGE)
-        : DEFAULT_AUDIT_PAGE;
+    const limit = pageLimit(req.query.limit, {
+      fallback: DEFAULT_AUDIT_PAGE,
+      max: MAX_AUDIT_PAGE,
+    });
 
     res.json(await store.auditEvents.list(limit));
   })

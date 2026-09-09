@@ -110,6 +110,34 @@ export function nowLabel(): string {
   return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
+/**
+ * How many rows a list route may return, from what the caller asked for.
+ *
+ * Every list route on this server is read on a five-second poll by a desk that
+ * is left open all shift, so an unbounded one is not a slow query that shows up
+ * under load later — it is a query whose cost grows with the ledger until the
+ * poll stops finishing. The web client aborts its own request after eight
+ * seconds and reports the abort as a dropped connection, so the first symptom
+ * is a board that says there is no connection while the server is answering
+ * perfectly well, just too slowly.
+ *
+ * Floored because `?limit=10.5` reaches Postgres as a numeric it rounds on its
+ * own, and a page size decided by rounding rules is not one anybody asked for.
+ * Anything unparseable, negative, zero or absent takes the fallback, which is
+ * what every current caller relies on — none of them send this parameter.
+ *
+ * The audit trail and the desk inbox each grew their own copy of this, the
+ * second one commented "for the same reason the audit route floors it". This is
+ * that reason, written once.
+ */
+export function pageLimit(
+  asked: unknown,
+  { fallback, max }: { fallback: number; max: number }
+): number {
+  const n = Number(asked);
+  return Number.isFinite(n) && n >= 1 ? Math.min(Math.floor(n), max) : fallback;
+}
+
 export function notFound(res: Response, what: string): Response {
   return res.status(404).json({ error: `${what} not found` });
 }
