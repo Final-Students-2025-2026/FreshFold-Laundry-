@@ -35,14 +35,23 @@
       "type": "chrome",
       "request": "launch",
 
-      // Attaches to a Vite dev server that is already running — it does not
-      // start one. `npm run dev` (or `dev:web`) first, or Chrome opens on a
-      // refused connection.
+      // Starts the dev server and waits for it to say it is ready — see the
+      // background matcher on this task in tasks.json, which is the only
+      // reason that file exists.
       //
-      // The port is Vite's configured 3000, and `strictPort` is not set in
-      // apps/web/vite.config.ts, so a busy 3000 silently moves the site to
-      // 3001 and this config then points at nothing. The port Vite actually
-      // took is in its terminal output.
+      // It does not notice a server you started yourself in a terminal, only
+      // one it started as this task. So with `npm run dev` already running,
+      // this launches a *second* Vite; `strictPort` is not set in
+      // apps/web/vite.config.ts, so that one takes 3001 without complaint
+      // while the debugger below attaches to the original on 3000. Confusing
+      // rather than broken — breakpoints still bind, because both servers are
+      // serving the same files — but the task's terminal is then reporting a
+      // port nothing is looking at. Stop the terminal one first, or drop this
+      // line and start the server by hand.
+      "preLaunchTask": "dev:web",
+
+      // Vite's configured port. If the task's terminal says 3001, something
+      // else already has 3000.
       "url": "http://localhost:3000",
 
       // Vite's root, not the repo's. The browser asks for `/src/App.tsx` and
