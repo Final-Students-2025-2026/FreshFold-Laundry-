@@ -29,7 +29,7 @@
  * is the actual property and is true on any machine.
  */
 
-import { rateLimit } from './rateLimit';
+import { rateLimit, type RateLimiter } from './rateLimit';
 
 let failures = 0;
 
@@ -166,6 +166,102 @@ async function main(): Promise<void> {
   });
 
   checkTrue('a fourth attempt on a fresh key is still refused', refusedAfterFlood);
+
+  // -------------------------------------------------------------------------
+  section('a shared proxy address is subdivided, and cannot be escaped');
+
+  /**
+   * The website reaches this server through Vercel's rewrite, so `req.ip` is
+   * the Vercel edge for every visitor and one bucket held the whole site. The
+   * fix cannot be to trust a second hop — the same service answers the mobile
+   * apps directly, so the extra entry would be one the caller wrote. So a
+   * claimed client subdivides the address's bucket and is bounded in aggregate
+   * by it. These are the two halves of that: honest visitors stop spending
+   * each other's allowance, and a forger cannot spend more than the multiple.
+   */
+  /** A limiter behind one proxy address, with room for three clients. */
+  const behindProxy = () =>
+    rateLimit({ max: 2, windowMs: 60 * 1000, message: 'too many', sharedClients: 3 });
+
+  /** One request from `claimed`, arriving through the proxy at `1.1.1.1`. */
+  const throughProxy = (mw: RateLimiter, claimed: string): Promise<boolean> =>
+    new Promise((resolve) => {
+      let passed = false;
+      mw(
+        {
+          params: {},
+          body: {},
+          ip: '1.1.1.1',
+          ips: ['1.1.1.1'],
+          headers: { 'x-forwarded-for': `${claimed}, 1.1.1.1` },
+        } as never,
+        fakeRes() as never,
+        () => {
+          passed = true;
+          resolve(true);
+        }
+      );
+      setImmediate(() => resolve(passed));
+    });
+
+  const allowed = async (mw: RateLimiter, claimed: string, n: number): Promise<number> => {
+    let through = 0;
+    for (let i = 0; i < n; i += 1) if (await throughProxy(mw, claimed)) through += 1;
+    return through;
+  };
+
+  // Three visitors, each spending exactly its own allowance. Before this they
+  // shared one bucket and the second was refused halfway through.
+  const sharing = behindProxy();
+  check('the first visitor behind a proxy gets its allowance', await allowed(sharing, '9.0.0.1', 2), 2);
+  check("...and has not spent the second visitor's", await allowed(sharing, '9.0.0.2', 2), 2);
+  check("...nor the third visitor's", await allowed(sharing, '9.0.0.3', 2), 2);
+
+  // The ceiling is still the stated one, per visitor.
+  check('a visitor is held to the stated ceiling', await allowed(behindProxy(), '9.0.0.9', 5), 2);
+
+  /**
+   * And the aggregate is the bound that matters: `max * sharedClients` is six,
+   * so a forger inventing a fresh client for every pair of requests is cut off
+   * at six however many identities he claims. A subdivision is not an escape.
+   */
+  const forging = behindProxy();
+  let forged = 0;
+  for (let i = 0; i < 20; i += 1) forged += await allowed(forging, `invented-${i}`, 2);
+
+  check('twenty invented clients still buy only the aggregate', forged, 6);
+
+  /**
+   * And with no surplus in the chain there is nothing claimed, so the direct
+   * path keys on the address exactly as it did before any of this existed.
+   */
+  const direct = rateLimit({ max: 2, windowMs: 60 * 1000, message: 'too many', sharedClients: 3 });
+
+  const straight = (): Promise<boolean> =>
+    new Promise((resolve) => {
+      let passed = false;
+      direct(
+        {
+          params: {},
+          body: {},
+          ip: '5.5.5.5',
+          ips: ['5.5.5.5'],
+          headers: { 'x-forwarded-for': '5.5.5.5' },
+        } as never,
+        fakeRes() as never,
+        () => {
+          passed = true;
+          resolve(true);
+        }
+      );
+      setImmediate(() => resolve(passed));
+    });
+
+  let straightThrough = 0;
+  for (let i = 0; i < 4; i += 1) if (await straight()) straightThrough += 1;
+
+  check('a direct caller is held to the stated ceiling', straightThrough, 2);
+  check('...and opened one bucket, not two', direct.buckets(), 1);
 
   section('and a request with nothing to bucket on is waved through');
 
