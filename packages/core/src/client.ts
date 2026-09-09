@@ -492,8 +492,17 @@ export function createClient(options: ClientOptions) {
      * history to anybody, and the whole ledger to a caller who passed nothing.
      * The server reads the address off the token instead.
      */
-    listBookings: (token: string) =>
-      request<Booking[]>('/bookings', { headers: bearer(token) }),
+    /**
+     * `limit` applies to a supervisor's whole-board read, which is the only
+     * scope here that grows without bound. A customer's own orders are not
+     * paged and the parameter is ignored for them. Omitted, the server's own
+     * page size applies — every caller today omits it.
+     */
+    listBookings: (token: string, limit?: number) =>
+      request<Booking[]>('/bookings', {
+        query: { limit: limit === undefined ? undefined : String(limit) },
+        headers: bearer(token),
+      }),
 
     getBooking: (id: string, auth: BookingAuth) =>
       request<Booking>(`/bookings/${encodeURIComponent(id)}`, { headers: authHeaders(auth) }),
@@ -1479,9 +1488,12 @@ export function createClient(options: ClientOptions) {
     // Profile data only. Credentials are not readable or writable here; see
     // the auth routes above.
 
-    /** The patron table. Supervisor only. */
-    listAccounts: (token: string) =>
-      request<UserAccount[]>('/accounts', { headers: bearer(token) }),
+    /** The patron table, oldest first. Supervisor only, and paged. */
+    listAccounts: (token: string, limit?: number) =>
+      request<UserAccount[]>('/accounts', {
+        query: { limit: limit === undefined ? undefined : String(limit) },
+        headers: bearer(token),
+      }),
 
     /**
      * Saves the signed-in customer's own profile.

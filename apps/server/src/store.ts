@@ -218,8 +218,23 @@ function repositories(exec: Executor) {
        * `DISPATCH_WITHOUT_PROOF` — a job from here is a *summary*, and handing
        * one back to `upsert` would erase the photographs it is missing.
        */
+      /**
+       * `limit` bounds the page. Absent means every matching row, which is
+       * what the rider and per-customer scopes still want — both are already
+       * narrowed by the filter to something that cannot grow without bound.
+       * The desk's whole-board read is the one that can, and it passes one.
+       *
+       * Ordering is newest first, so a page that has to cut something cuts the
+       * oldest job. On an operational board that is the least harmful end to
+       * lose: the row a supervisor is looking for is the one that just moved.
+       */
       async list(
-        filter: { riderId?: string | null; email?: string | null; phone?: string | null } = {}
+        filter: {
+          riderId?: string | null;
+          email?: string | null;
+          phone?: string | null;
+          limit?: number;
+        } = {}
       ): Promise<Job[]> {
         const key = phoneLookup(filter.phone ?? undefined);
 
@@ -242,6 +257,7 @@ function repositories(exec: Executor) {
                 : exec`true`
             }
           order by created_at desc, id desc
+          ${filter.limit === undefined ? exec`` : exec`limit ${filter.limit}`}
         `;
         return rows.map(toJob);
       },
@@ -610,9 +626,30 @@ function repositories(exec: Executor) {
     // Accounts
     // -----------------------------------------------------------------------
     accounts: {
-      async list(): Promise<StoredAccount[]> {
-        const rows = await exec<AccountRow[]>`select * from accounts order by created_at`;
-        return rows.map(toAccount);
+      /**
+       * The patron table, oldest first.
+       *
+       * `limit` selects the *newest* rows and then restores that order, which
+       * is the whole subtlety here. This table is the one place the natural
+       * ordering runs opposite to the useful one: a plain `limit` on
+       * `order by created_at` would have kept the oldest accounts and dropped
+       * the ones who signed up most recently — so the patrons a desk is most
+       * likely to be looking for are exactly the ones that would vanish, and
+       * silently, since a shorter list looks the same as a smaller business.
+       *
+       * Reversing in JavaScript rather than in a subquery because the page is
+       * bounded by definition: at most `limit` rows are ever turned around.
+       */
+      async list({ limit }: { limit?: number } = {}): Promise<StoredAccount[]> {
+        if (limit === undefined) {
+          const all = await exec<AccountRow[]>`select * from accounts order by created_at`;
+          return all.map(toAccount);
+        }
+
+        const newest = await exec<AccountRow[]>`
+          select * from accounts order by created_at desc, email desc limit ${limit}
+        `;
+        return newest.map(toAccount).reverse();
       },
 
       async find(email: string, opts: { lock?: boolean } = {}): Promise<StoredAccount | null> {
