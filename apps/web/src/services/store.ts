@@ -158,6 +158,85 @@ let online = false;
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 
 /**
+ * How many attempts in a row have to fail before this browser calls itself
+ * offline.
+ *
+ * One is too few, and that is not a theoretical worry: this site is used over
+ * Kumasi mobile data, where a single request stalling past its budget is an
+ * ordinary event on a working connection. The desk's poll is three requests at
+ * once, so it only takes the slowest of the three. Flipping on the first miss
+ * put "No connection" over a board that was about to refresh perfectly well,
+ * and the strip went back to being something people learn to ignore.
+ *
+ * Two, rather than more, because the other error is just as real: a supervisor
+ * confirming a wash against a server that is genuinely gone needs to know
+ * before they have confirmed six of them. At a five-second poll that is about
+ * ten seconds to be sure, and a connection this browser knows is down — see
+ * `navigator.onLine` in {@link connectionState} — does not wait at all.
+ */
+const OFFLINE_AFTER_MISSES = 2;
+
+/** Consecutive failed attempts. Reset by anything that reaches the server. */
+let misses = 0;
+
+/**
+ * Whether any attempt has produced an outcome yet, either way.
+ *
+ * The flag `online` cannot express this. It starts `false`, which reads as
+ * "offline" but means "nobody has asked yet", and everything rendering it
+ * treated the two the same — so every visitor was told the connection was gone
+ * for as long as the first request took, which on a slow link is longer than it
+ * sounds. {@link connectionState} keeps them apart.
+ */
+let settled = false;
+
+/**
+ * Whether the last failure came from the gateway rather than from the network.
+ *
+ * A 502/503/504 is Render's router saying the process behind it did not answer
+ * — which on the free plan is nearly always a service waking from its
+ * fifteen-minute sleep, taking about fifty seconds about it. That is worth
+ * different words from a dead connection: it is going to fix itself, and the
+ * one useful instruction is to wait rather than to go looking for signal.
+ */
+let wakingUp = false;
+
+/**
+ * What this browser currently believes about the connection.
+ *
+ * Three answers, because "not known yet" is a real state and rendering it as
+ * "offline" is what made the strip lie.
+ */
+export function connectionState(): 'unknown' | 'online' | 'offline' | 'waking' {
+  // The browser knows about its own interface before any request can find out.
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return 'offline';
+  if (!settled) return 'unknown';
+  if (misses < OFFLINE_AFTER_MISSES) return 'online';
+  return wakingUp ? 'waking' : 'offline';
+}
+
+/**
+ * Record that the server answered — with anything at all.
+ *
+ * A refusal counts. `isUnreachable` already draws that line; by the time either
+ * of these is called the decision has been made.
+ */
+function markReachable(): void {
+  misses = 0;
+  wakingUp = false;
+  online = true;
+  settled = true;
+}
+
+/** Record that an attempt got no answer. Only sustained silence means offline. */
+function markMissed(gateway: boolean): void {
+  misses += 1;
+  wakingUp = gateway;
+  settled = true;
+  if (misses >= OFFLINE_AFTER_MISSES) online = false;
+}
+
+/**
  * Set when the desk’s token is refused rather than merely unanswered.
  *
  * The desk session lasts twelve hours and `App` re-validates it only when the
@@ -334,6 +413,21 @@ function isAuthFailure(error: unknown): boolean {
 }
 
 /**
+ * Whether the reply came from the proxy in front of the server, not the server.
+ *
+ * The three statuses `apps/server` never writes. On this deployment they mean
+ * the Render service is asleep or restarting, which is a wait rather than a
+ * fault — {@link connectionState} reports it as `waking` so the strip can say
+ * the useful thing instead of blaming the connection.
+ */
+function isGatewayFailure(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    (error.status === 502 || error.status === 503 || error.status === 504)
+  );
+}
+
+/**
  * Whether a failed write is worth retrying.
  *
  * A dropped connection is temporary and the write should wait. A rejection is
@@ -389,7 +483,10 @@ async function drain(): Promise<void> {
   draining = true;
   inFlight += 1;
 
-  const onlineBefore = online;
+  // The reported state, not the raw flag: a first miss moves the strip from
+  // "nothing known yet" to "online" without `online` itself changing, and the
+  // second one is what finally flips it. Comparing the flag would sit on both.
+  const stateBefore = connectionState();
   const queuedBefore = queue.length;
   const blockedBefore = queueBlockedOnAuth;
 
@@ -406,7 +503,7 @@ async function drain(): Promise<void> {
           // somebody signs in; the banner says as much rather than spinning on
           // “sending” against a credential that will never be accepted.
           queueBlockedOnAuth = true;
-          online = true;
+          markReachable();
           return;
         }
 
@@ -416,7 +513,7 @@ async function drain(): Promise<void> {
           // in the queue. Retrying forever would wedge the queue and block
           // every later write from this browser, so it is dropped and we carry
           // on. We are still online; this was a rejection, not a timeout.
-          online = true;
+          markReachable();
           queue.shift();
           writeLocal(KEYS.queue, queue);
           continue;
@@ -424,13 +521,13 @@ async function drain(): Promise<void> {
 
         // Server unreachable. Keep the write for the next attempt and stop
         // draining — order matters, so we don't skip ahead.
-        online = false;
+        markMissed(isGatewayFailure(error));
         return;
       }
       queue.shift();
       writeLocal(KEYS.queue, queue);
     }
-    online = true;
+    markReachable();
   } finally {
     draining = false;
     inFlight -= 1;
@@ -447,7 +544,7 @@ async function drain(): Promise<void> {
     // down. Gating on a real change bounds it: the second pass has nothing new
     // to report and stops.
     if (
-      online !== onlineBefore ||
+      connectionState() !== stateBefore ||
       queue.length !== queuedBefore ||
       queueBlockedOnAuth !== blockedBefore
     ) {
@@ -1410,7 +1507,7 @@ export async function pull(): Promise<void> {
     else if (authToken) await pullAsCustomer(authToken);
     else await pullAsVisitor();
 
-    online = true;
+    markReachable();
     lastPulled = Date.now();
     await pullAccount();
   } catch (error) {
@@ -1420,7 +1517,11 @@ export async function pull(): Promise<void> {
     // working and something else is wrong. Reading those as offline is what put
     // a permanent “no connection” banner over a board whose only problem was a
     // session that had run out. The mirror stands either way.
-    online = !isUnreachable(error);
+    // One miss is not a verdict. A request that stalls past its budget is an
+    // ordinary event on a mobile connection, and the desk's pull is three of
+    // them at once — see {@link OFFLINE_AFTER_MISSES}.
+    if (isUnreachable(error)) markMissed(isGatewayFailure(error));
+    else markReachable();
 
     // The desk’s token specifically. Nothing re-checks it once the route is
     // open, so without this the board polls a token the server has already
