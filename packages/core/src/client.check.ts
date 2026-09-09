@@ -23,7 +23,7 @@
  */
 
 import { checkTrue, report, section } from './check';
-import { ApiError, COLD_AFTER_IDLE_MS, createClient, isUnreachable } from './client';
+import { ApiError, COLD_AFTER_IDLE_MS, createClient, isUnreachable, TimeoutError } from './client';
 
 const REMOTE = 'https://freshfold-server.onrender.com';
 const LAN = 'http://192.168.100.39:4000';
@@ -316,6 +316,64 @@ section('reached, or not reached at all');
     'so is our own timeout firing',
     isUnreachable(new DOMException('The operation was aborted.', 'AbortError'))
   );
+  checkTrue(
+    'and so is the error it is now reported as',
+    isUnreachable(new TimeoutError(8000))
+  );
+}
+
+section('a timeout says something a person can read');
+
+/**
+ * The bug these pin down reached a supervisor's screen.
+ *
+ * Aborting a `fetch` rejects with whatever the platform calls it — in Chrome,
+ * `signal is aborted without reason` — and every screen in `apps/web` renders
+ * `error.message`, so that string went into a toast on the hub desk. The class
+ * exists to put a sentence there instead; these check that the swap actually
+ * happens on the timeout path, and only on it.
+ */
+{
+  const api = createClient({
+    baseUrl: REMOTE,
+    timeoutMs: SHORT,
+    coldStartMs: 0,
+    fetchImpl: respondsIn(REPLY_AFTER),
+  });
+
+  let caught: unknown;
+  try {
+    await api.health();
+  } catch (error) {
+    caught = error;
+  }
+
+  checkTrue('a request that runs out of budget throws TimeoutError', caught instanceof TimeoutError);
+  checkTrue(
+    'and carries a sentence rather than the platform’s abort text',
+    caught instanceof Error && !caught.message.includes('abort')
+  );
+}
+
+{
+  // The other half: a reply that arrives is never re-labelled as a timeout, no
+  // matter how close to the budget it lands. `coldStartMs: 0` holds every
+  // request to `timeoutMs`, and the stub answers well inside it.
+  const api = createClient({
+    baseUrl: REMOTE,
+    timeoutMs: LONG,
+    coldStartMs: 0,
+    fetchImpl: respondsIn(REPLY_AFTER, 401),
+  });
+
+  let caught: unknown;
+  try {
+    await api.health();
+  } catch (error) {
+    caught = error;
+  }
+
+  checkTrue('a refusal that arrives in time is still an ApiError', caught instanceof ApiError);
 }
 
 report();
