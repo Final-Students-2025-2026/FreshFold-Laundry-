@@ -77,6 +77,19 @@ export default function AuthScreen() {
     else router.replace('/(tabs)');
   }, [router]);
 
+  /**
+   * Edits the contact, and drops anything said about the previous one.
+   *
+   * The reset confirmation names the address it was sent to, so the moment
+   * that address stops being what is in the field the notice is answering a
+   * question nobody asked — and a customer correcting a typo was left reading
+   * a confirmation for the typo.
+   */
+  const changeIdentifier = useCallback((next: string) => {
+    setIdentifier(next);
+    setResetNotice('');
+  }, []);
+
   /** Tells the customer which door they are at before they type a password. */
   const probeContact = useCallback(async () => {
     const value = identifier.trim();
@@ -231,6 +244,10 @@ export default function AuthScreen() {
               setMode(next);
               setError('');
               setHint('');
+              // The notice belongs to the sign-in form. Left standing, it came
+              // back on the way through "Create account" and out again, long
+              // after it meant anything.
+              setResetNotice('');
             }}
             style={{ marginTop: 20, marginBottom: 18 }}
           />
@@ -241,7 +258,7 @@ export default function AuthScreen() {
                 <Field
                   label="Email or phone"
                   value={identifier}
-                  onChangeText={setIdentifier}
+                  onChangeText={changeIdentifier}
                   placeholder="you@example.com"
                   autoCapitalize="none"
                   keyboardType="email-address"
