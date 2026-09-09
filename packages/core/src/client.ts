@@ -62,6 +62,49 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * This client's own budget ran out before anything answered.
+ *
+ * Its whole reason for existing is the message. Aborting a `fetch` rejects with
+ * whatever the platform decided to call it — Chrome says `signal is aborted
+ * without reason`, which is a true statement about an `AbortController` and a
+ * baffling one to a supervisor at a desk. That string reached people, because
+ * nearly every screen in `apps/web` renders `error.message` directly and
+ * `DOMException` passes an `instanceof Error` check as readily as anything we
+ * wrote ourselves.
+ *
+ * So the platform's error is caught at the one place it can be recognised — the
+ * timer that caused it — and replaced with a sentence. What it deliberately
+ * does *not* say is that nothing happened: the server does not check whether
+ * the caller is still listening, so a write that timed out on the way back has
+ * very likely landed. Callers that changed something say so in their own words;
+ * see `HubPanel`.
+ *
+ * Not an {@link ApiError}, and it must never become one: nothing answered, so
+ * {@link isUnreachable} has to keep reading it as a dropped connection.
+ */
+export class TimeoutError extends Error {
+  constructor(readonly waitedMs: number) {
+    super('The dispatch server did not answer in time.');
+    this.name = 'TimeoutError';
+  }
+}
+
+/**
+ * Whether a rejection is an abort, from any of the runtimes this file runs in.
+ *
+ * Duck-typed rather than `instanceof DOMException`, because the same module is
+ * loaded under Vite, Metro and Node, and only one of those has always had that
+ * global.
+ */
+function isAbortError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as { name?: unknown }).name === 'AbortError'
+  );
+}
+
 export interface ClientOptions {
   /** Origin of the dispatch server, e.g. `http://192.168.1.42:4000`. */
   baseUrl: string;
@@ -180,6 +223,41 @@ const GATEWAY_MESSAGE =
   'The dispatch server is not answering just now. It may be starting back up — try again in a moment.';
 
 /**
+ * The sentence to put in front of a person when a request failed.
+ *
+ * Every screen in `apps/web` used to render `error.message` behind an
+ * `instanceof Error` check, which is true of everything a browser throws. So
+ * when the network dropped, a customer was shown `Failed to fetch` — Chrome
+ * describing its own plumbing, in a sentence that names nothing they did and
+ * suggests nothing they could do. The abort case produced `signal is aborted
+ * without reason`, which was worse.
+ *
+ * Three kinds of error reach these call sites, and only one of them should
+ * never be shown:
+ *
+ *  - {@link ApiError} and {@link TimeoutError} are ours, and their messages are
+ *    written to be read — the server's own `error` field, the gateway wording,
+ *    the timeout sentence.
+ *  - A plain `new Error('Sign in to use your wallet.')` is this codebase
+ *    throwing on purpose. `services/store.ts` alone does it fifteen times, and
+ *    those sentences are better than any fallback a caller could pass.
+ *  - A *subclass* of `Error` that we did not define is the platform describing
+ *    itself: `TypeError` from a failed `fetch`, `SyntaxError` from a body that
+ *    would not parse, `DOMException` from an abort. Those are the ones that
+ *    leaked, and the constructor check is what excludes them.
+ *
+ * The caller's fallback is written for the specific thing that failed, so it is
+ * a better answer than any of those anyway.
+ */
+export function failureMessage(error: unknown, fallback: string): string {
+  if (error instanceof ApiError || error instanceof TimeoutError) return error.message;
+  // Deliberately `constructor ===` rather than `instanceof`: the point is to
+  // admit `new Error(…)` while refusing everything derived from it.
+  if (error instanceof Error && error.constructor === Error && error.message) return error.message;
+  return fallback;
+}
+
+/**
  * Whether a failed request means the server was never reached.
  *
  * The distinction the offline mirror in `apps/web` turns on, and the one it
@@ -194,8 +272,8 @@ const GATEWAY_MESSAGE =
  * did not answer *it*, which is what unreachable looks like from out here.
  *
  * Anything else is `fetch` itself rejecting — no network, no DNS, refused, or
- * this client’s own `AbortController` firing on the timeout — and none of
- * those got an answer either.
+ * this client’s own `AbortController` firing on the timeout, which arrives as
+ * a {@link TimeoutError} — and none of those got an answer either.
  */
 export function isUnreachable(error: unknown): boolean {
   return error instanceof ApiError ? GATEWAY_STATUS.has(error.status) : true;
@@ -337,7 +415,15 @@ export function createClient(options: ClientOptions) {
     }
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), budgetMs());
+    const waited = budgetMs();
+    // Which of the two things that can abort this request actually did. The
+    // caller's own signal aborts the same way, and that one is a cancellation
+    // rather than a failure — nobody should be shown a sentence about it.
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, waited);
 
     try {
       const response = await doFetch(url, {
@@ -387,6 +473,13 @@ export function createClient(options: ClientOptions) {
       }
 
       return body as T;
+    } catch (error) {
+      // Only our own timer, and only when the rejection really is the abort it
+      // caused. Without the second half, a reply that arrived in the same tick
+      // the budget expired — a 401, say — would have its sentence replaced by
+      // one about a timeout, which is the opposite of what happened.
+      if (timedOut && isAbortError(error)) throw new TimeoutError(waited);
+      throw error;
     } finally {
       clearTimeout(timer);
     }
@@ -434,8 +527,17 @@ export function createClient(options: ClientOptions) {
      * history to anybody, and the whole ledger to a caller who passed nothing.
      * The server reads the address off the token instead.
      */
-    listBookings: (token: string) =>
-      request<Booking[]>('/bookings', { headers: bearer(token) }),
+    /**
+     * `limit` applies to a supervisor's whole-board read, which is the only
+     * scope here that grows without bound. A customer's own orders are not
+     * paged and the parameter is ignored for them. Omitted, the server's own
+     * page size applies — every caller today omits it.
+     */
+    listBookings: (token: string, limit?: number) =>
+      request<Booking[]>('/bookings', {
+        query: { limit: limit === undefined ? undefined : String(limit) },
+        headers: bearer(token),
+      }),
 
     getBooking: (id: string, auth: BookingAuth) =>
       request<Booking>(`/bookings/${encodeURIComponent(id)}`, { headers: authHeaders(auth) }),
@@ -1421,9 +1523,12 @@ export function createClient(options: ClientOptions) {
     // Profile data only. Credentials are not readable or writable here; see
     // the auth routes above.
 
-    /** The patron table. Supervisor only. */
-    listAccounts: (token: string) =>
-      request<UserAccount[]>('/accounts', { headers: bearer(token) }),
+    /** The patron table, oldest first. Supervisor only, and paged. */
+    listAccounts: (token: string, limit?: number) =>
+      request<UserAccount[]>('/accounts', {
+        query: { limit: limit === undefined ? undefined : String(limit) },
+        headers: bearer(token),
+      }),
 
     /**
      * Saves the signed-in customer's own profile.

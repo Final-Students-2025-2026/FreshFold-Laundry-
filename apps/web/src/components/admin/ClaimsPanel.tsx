@@ -35,6 +35,7 @@ import {
   type Claim,
   type ClaimStatus,
 } from '@freshfold/core';
+import { failureMessage } from '@freshfold/core';
 import * as store from '../../services/store';
 import OrderRef from './OrderRef';
 import PaneHeader, { ResourceBanner } from './PaneHeader';
@@ -161,7 +162,7 @@ export default function ClaimsPanel({
       // The shell re-reads the queue and the trail; this pane holds neither.
       onHandled(`${claim.id} — ${CLAIM_STATUS_LABELS[status].toLowerCase()}`);
     } catch (e) {
-      onFailed(e instanceof Error ? e.message : 'That could not be recorded.');
+      onFailed(failureMessage(e, 'That could not be recorded.'));
     } finally {
       setBusy(false);
     }

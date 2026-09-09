@@ -1,0 +1,62 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Dispatch server",
+      "type": "node",
+      "request": "launch",
+
+      // Node runs the TypeScript entry point directly, with tsx registered as
+      // the loader. Deliberately not `tsx watch`, which is what `npm run
+      // dev:server` uses: watch mode runs the server in a *child* process and
+      // restarts it on save, so the debugger attaches to the supervisor that
+      // never executes a line of our code and no breakpoint ever binds. One
+      // process, breakpoints that work, and a manual restart — the trade this
+      // config exists to make. Keep using the npm script when you want the
+      // reload and don't need to stop anywhere.
+      "runtimeArgs": ["--import", "tsx"],
+      "program": "${workspaceFolder}/apps/server/src/index.ts",
+
+      // `dotenv.config()` resolves `.env` against the working directory, not
+      // against the file that calls it — see the comment on the call in
+      // apps/server/src/db.ts. Launched from the repo root this would read no
+      // env at all and die on a missing DATABASE_URL, which looks exactly like
+      // a broken .env file.
+      "cwd": "${workspaceFolder}/apps/server",
+
+      // The startup banner prints the seeded desk credentials and the database
+      // host, and the integrated terminal is where you can actually read them.
+      // The debug console would swallow them into a pane nobody opens.
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "name": "Website",
+      "type": "chrome",
+      "request": "launch",
+
+      // Starts the dev server and waits for it to say it is ready — see the
+      // background matcher on this task in tasks.json, which is the only
+      // reason that file exists.
+      //
+      // It does not notice a server you started yourself in a terminal, only
+      // one it started as this task. So with the `dev` task or `npm run dev`
+      // already running, this tries to start a second Vite on a port the
+      // first one holds — and since `strictPort` is set in
+      // apps/web/vite.config.ts, that fails outright and the debug session
+      // never opens. Loud, and the right way round: the alternative was a
+      // second server on 3001 while the debugger attached to the original.
+      // Stop the running one first, or drop this line and start it by hand.
+      "preLaunchTask": "dev:web",
+
+      "url": "http://localhost:3000",
+
+      // Vite's root, not the repo's. The browser asks for `/src/App.tsx` and
+      // this is what that leading slash is resolved against; set to the
+      // workspace root, every breakpoint in the site's own code would be
+      // looking one directory too high. Files from packages/core arrive as
+      // absolute `/@fs/` URLs and resolve without help.
+      "webRoot": "${workspaceFolder}/apps/web"
+    }
+  ]
+}

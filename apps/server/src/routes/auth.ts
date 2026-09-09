@@ -1200,9 +1200,16 @@ export function looksLikeContact(value: string): boolean {
  * costs to ask in bulk, which is the honest defence and not a complete one — a
  * caller spread across many addresses still gets many answers.
  *
- * **If that hint is ever dropped from the app, delete this route with it.** It
- * has no other caller: the website's `authStatus` wrapper in
- * `apps/web/src/services/store.ts` is exported and imported by nothing.
+ * **If both callers are ever dropped, delete this route with them.** There are
+ * two now. The website's `authStatus` wrapper in
+ * `apps/web/src/services/store.ts` used to be imported by nothing, and the
+ * portal guessed the answer instead — it searched the browser's copy of the
+ * booking ledger and told anyone with a booking that they had no password,
+ * which was a claim about credentials drawn from a table that holds none. It
+ * fired on customers who had set a password in the app, and sent them to
+ * `/auth/resend-setup`, which does nothing for an account that has one. The
+ * sign-in and resend paths in `ClientPortal` ask here now, so the oracle this
+ * route knowingly is has bought a second real feature.
  */
 authRouter.post(
   '/status',

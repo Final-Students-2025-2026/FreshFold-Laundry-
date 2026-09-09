@@ -13,7 +13,7 @@
     "db:migrate": "tsx src/migrate.ts",
     "import:json": "tsx src/import-json.ts",
     "lint": "tsc --noEmit",
-    "check": "tsx src/schema.check.ts && tsx src/db.check.ts && tsx src/rateLimit.check.ts && tsx src/orders.check.ts && tsx src/headers.check.ts && tsx src/credentials.check.ts && tsx src/auth.check.ts && tsx src/uploads.check.ts && tsx src/payments.check.ts"
+    "check": "tsx src/schema.check.ts && tsx src/db.check.ts && tsx src/pagination.check.ts && tsx src/aborted.check.ts && tsx src/rateLimit.check.ts && tsx src/orders.check.ts && tsx src/headers.check.ts && tsx src/credentials.check.ts && tsx src/auth.check.ts && tsx src/uploads.check.ts && tsx src/payments.check.ts"
   },
   "dependencies": {
     "@freshfold/core": "*",

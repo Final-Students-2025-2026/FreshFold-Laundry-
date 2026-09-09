@@ -23,7 +23,14 @@
  */
 
 import { checkTrue, report, section } from './check';
-import { ApiError, COLD_AFTER_IDLE_MS, createClient, isUnreachable } from './client';
+import {
+  ApiError,
+  COLD_AFTER_IDLE_MS,
+  createClient,
+  failureMessage,
+  isUnreachable,
+  TimeoutError,
+} from './client';
 
 const REMOTE = 'https://freshfold-server.onrender.com';
 const LAN = 'http://192.168.100.39:4000';
@@ -316,6 +323,125 @@ section('reached, or not reached at all');
     'so is our own timeout firing',
     isUnreachable(new DOMException('The operation was aborted.', 'AbortError'))
   );
+  checkTrue(
+    'and so is the error it is now reported as',
+    isUnreachable(new TimeoutError(8000))
+  );
+}
+
+section('a timeout says something a person can read');
+
+/**
+ * The bug these pin down reached a supervisor's screen.
+ *
+ * Aborting a `fetch` rejects with whatever the platform calls it — in Chrome,
+ * `signal is aborted without reason` — and every screen in `apps/web` renders
+ * `error.message`, so that string went into a toast on the hub desk. The class
+ * exists to put a sentence there instead; these check that the swap actually
+ * happens on the timeout path, and only on it.
+ */
+{
+  const api = createClient({
+    baseUrl: REMOTE,
+    timeoutMs: SHORT,
+    coldStartMs: 0,
+    fetchImpl: respondsIn(REPLY_AFTER),
+  });
+
+  let caught: unknown;
+  try {
+    await api.health();
+  } catch (error) {
+    caught = error;
+  }
+
+  checkTrue('a request that runs out of budget throws TimeoutError', caught instanceof TimeoutError);
+  checkTrue(
+    'and carries a sentence rather than the platform’s abort text',
+    caught instanceof Error && !caught.message.includes('abort')
+  );
+}
+
+{
+  // The other half: a reply that arrives is never re-labelled as a timeout, no
+  // matter how close to the budget it lands. `coldStartMs: 0` holds every
+  // request to `timeoutMs`, and the stub answers well inside it.
+  const api = createClient({
+    baseUrl: REMOTE,
+    timeoutMs: LONG,
+    coldStartMs: 0,
+    fetchImpl: respondsIn(REPLY_AFTER, 401),
+  });
+
+  let caught: unknown;
+  try {
+    await api.health();
+  } catch (error) {
+    caught = error;
+  }
+
+  checkTrue('a refusal that arrives in time is still an ApiError', caught instanceof ApiError);
+}
+
+section('which errors are fit to show a person');
+
+/**
+ * The rule `failureMessage` exists to enforce, from both sides.
+ *
+ * Getting it wrong is silent either way: too permissive and a customer reads
+ * `Failed to fetch`, too strict and the deliberate sentences this codebase
+ * throws — `services/store.ts` alone has fifteen — are replaced by a generic
+ * fallback that says less.
+ */
+{
+  const FALLBACK = 'Could not reach FreshFold just now.';
+  const shown = (error: unknown) => failureMessage(error, FALLBACK);
+
+  // Ours, and written to be read.
+  checkTrue(
+    'the server’s own sentence is shown',
+    shown(new ApiError('That code has already been used.', 409)) ===
+      'That code has already been used.'
+  );
+  checkTrue(
+    'so is the timeout’s',
+    shown(new TimeoutError(8000)) === 'The dispatch server did not answer in time.'
+  );
+  checkTrue(
+    'and a plain Error this codebase threw on purpose',
+    shown(new Error('Sign in to use your wallet.')) === 'Sign in to use your wallet.'
+  );
+
+  // The platform describing itself. These are the ones that reached customers.
+  checkTrue(
+    'a dropped connection does not show `Failed to fetch`',
+    shown(new TypeError('Failed to fetch')) === FALLBACK
+  );
+  checkTrue(
+    'an abort does not show its DOMException text',
+    shown(new DOMException('signal is aborted without reason', 'AbortError')) === FALLBACK
+  );
+  checkTrue(
+    'a body that would not parse does not show a SyntaxError',
+    shown(new SyntaxError('Unexpected token < in JSON at position 0')) === FALLBACK
+  );
+
+  // A subclass we did not define is still the platform's, even when its message
+  // reads like a sentence — the constructor is the test, not the wording.
+  class SomeLibraryError extends Error {}
+  checkTrue(
+    'a subclass we did not define is refused',
+    shown(new SomeLibraryError('Internal adapter state invalid')) === FALLBACK
+  );
+
+  // Nothing thrown that is not an error at all.
+  checkTrue('a thrown string falls back', shown('boom') === FALLBACK);
+  checkTrue('a thrown null falls back', shown(null) === FALLBACK);
+  checkTrue('undefined falls back', shown(undefined) === FALLBACK);
+
+  // `err.message || fallback` used to handle this shape; the replacement has to
+  // as well, or an empty message becomes an empty message on screen.
+  checkTrue('an Error with no message falls back', shown(new Error('')) === FALLBACK);
 }
 
 report();

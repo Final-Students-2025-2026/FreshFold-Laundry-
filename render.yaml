@@ -72,8 +72,24 @@ services:
       # Render terminates TLS at its own proxy, so X-Forwarded-For carries the
       # real client IP and /api/directions can rate-limit per caller instead of
       # putting the whole internet in one bucket.
+      #
+      # One, and it must stay one. This service is reachable directly, so a
+      # caller can present any chain they like and a second trusted hop would
+      # be an IP they chose. The website's extra hop is handled by
+      # SHARED_PROXY_CLIENTS below rather than by trusting it here.
       - key: TRUST_PROXY
         value: "1"
+
+      # The website reaches this service through Vercel's rewrite, so every
+      # visitor arrives from the same edge address and would otherwise share
+      # one rate-limit bucket — ten /auth/status lookups for the whole site,
+      # and the eleventh customer refused. This subdivides a shared address by
+      # the client it claims to carry, capped at that many times each limiter's
+      # ceiling in aggregate, so a forged header buys a bounded multiple rather
+      # than an escape. See the note on SHARED_PROXY_CLIENTS in rateLimit.ts.
+      # Raise it if the site outgrows twenty-five concurrent visitors.
+      - key: SHARED_PROXY_CLIENTS
+        value: "25"
 
       # Render injects PORT; index.ts already reads it.
 

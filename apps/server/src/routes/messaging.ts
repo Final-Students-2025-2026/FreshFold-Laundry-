@@ -15,7 +15,7 @@ import {
   type Caller,
 } from '../booking-access';
 import { store } from '../store';
-import { guard, nowLabel, notFound } from '../helpers';
+import { callerGone, guard, nowLabel, notFound, pageLimit } from '../helpers';
 
 /**
  * One conversation per job, visible from all three surfaces: the customer
@@ -94,16 +94,15 @@ messagesRouter.get(
         return;
       }
 
-      // Floored for the same reason the audit route floors it: `?limit=10.5`
-      // reaches Postgres as a numeric it rounds on its own, and a page size
-      // decided by rounding rules is not one anybody asked for.
-      const asked = Number(req.query.limit);
-      const limit =
-        Number.isFinite(asked) && asked >= 1
-          ? Math.min(Math.floor(asked), MAX_INBOX_PAGE)
-          : DEFAULT_INBOX_PAGE;
+      const limit = pageLimit(req.query.limit, {
+        fallback: DEFAULT_INBOX_PAGE,
+        max: MAX_INBOX_PAGE,
+      });
 
-      res.json(await store.messages.listRecent(limit));
+      const recent = await store.messages.listRecent(limit);
+      if (callerGone(res)) return;
+
+      res.json(recent);
       return;
     }
 

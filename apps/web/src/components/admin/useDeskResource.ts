@@ -31,6 +31,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ApiError, TimeoutError } from '@freshfold/core';
 import * as store from '../../services/store';
 
 export interface DeskResource<T> {
@@ -119,7 +120,15 @@ export function useDeskResource<T>(
         // The previous answer stays on screen underneath the error. A board
         // that blanked itself because one poll missed would be worse than a
         // board that says it is stale.
-        setError(e instanceof Error ? e.message : 'This could not be read from the server.');
+        //
+        // Only errors carrying a sentence written for a person are shown; a
+        // `DOMException` from an aborted fetch passes `instanceof Error` too,
+        // and put `signal is aborted without reason` above a pane of the desk.
+        setError(
+          e instanceof ApiError || e instanceof TimeoutError
+            ? e.message
+            : 'This could not be read from the server.',
+        );
       })
       .finally(() => {
         if (cancelled) return;
@@ -222,7 +231,7 @@ export function useDeskMirror(): Omit<DeskResource<void>, 'data'> {
   }, []);
 
   const fetchedAt = store.lastSyncedAt();
-  const online = store.isOnline();
+  const state = store.connectionState();
 
   // Keyed on the instant rather than the `Date`, which is a new object on every
   // read and would defeat the memo it is sitting in.
@@ -230,14 +239,20 @@ export function useDeskMirror(): Omit<DeskResource<void>, 'data'> {
 
   return useMemo(
     () => ({
-      error: online
-        ? null
-        : 'The server could not be reached. This is the last board that came back.',
+      // `unknown` and `online` both say nothing: one poll that has not come
+      // back yet is not a stale board, and the timestamp already tells a
+      // supervisor how old what they are reading is.
+      error:
+        state === 'waking'
+          ? 'The dispatch server is starting up. This is the last board that came back.'
+          : state === 'offline'
+            ? 'The server could not be reached. This is the last board that came back.'
+            : null,
       loading: at === null,
       refreshing,
       fetchedAt: at === null ? null : new Date(at),
       refresh,
     }),
-    [online, at, refreshing, refresh],
+    [state, at, refreshing, refresh],
   );
 }

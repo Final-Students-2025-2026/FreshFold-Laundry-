@@ -60,8 +60,10 @@ import {
   X,
 } from 'lucide-react';
 import {
+  ApiError,
   BOOKING_STAGE_SEQUENCE,
   isRemedyOwed,
+  TimeoutError,
   type AuditEvent,
   type Claim,
   type Invoice,
@@ -382,10 +384,26 @@ function Desk({ onClose, onSignOut, activeBookings, onUpdateBookings }: AdminDas
   // Handlers
   // -------------------------------------------------------------------------
 
-  /** Every failure on the desk reports the same way: what failed, and that nothing moved. */
+  /**
+   * Every failure on the desk reports the same way: what failed, and that
+   * nothing moved.
+   *
+   * The test is not `instanceof Error`, which is what it used to be. Everything
+   * thrown in a browser passes that — including the `DOMException` an aborted
+   * `fetch` rejects with, whose message in Chrome is `signal is aborted without
+   * reason`. That went straight into a toast in front of a supervisor, who has
+   * no way to read it as "the request took more than eight seconds".
+   *
+   * Only the two errors we build ourselves carry a sentence meant for a person:
+   * `ApiError`, which is either the server's own `error` field or the wording
+   * for a gateway reply, and `TimeoutError`. Everything else gets the caller's
+   * fallback, which is written for the specific thing that failed and is better
+   * than any platform string.
+   */
   const reportFailure = useCallback(
     (e: unknown, fallback: string) => {
-      toast(e instanceof Error ? e.message : fallback, 'bad');
+      const stated = e instanceof ApiError || e instanceof TimeoutError;
+      toast(stated ? e.message : fallback, 'bad');
     },
     [toast],
   );
