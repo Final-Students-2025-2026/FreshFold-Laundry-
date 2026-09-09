@@ -871,27 +871,67 @@ export default function ClientPortal({
       setCurrentUser(account);
       setInputPassword('');
     } catch (e) {
-      // A rejected sign-in may just mean this patron has a booking but has
-      // never chosen a password, so point them at setup rather than leaving
-      // them stuck on "wrong credentials".
-      const bookingMatch = store.readBookings().find(b => {
-        const cleanInp = inputIdentifier.toLowerCase().trim();
-        return b.email.toLowerCase() === cleanInp || samePhone(b.phone, cleanInp);
-      });
+      const fallback =
+        e instanceof Error
+          ? e.message
+          : 'We could not sign you in with those details. Check them, or book a pickup to get started.';
 
-      if (bookingMatch) {
-        setLoginError(
-          `We found booking ${bookingMatch.id} under those details, but no password has been ` +
-            'set for it yet. Open the setup link in your confirmation email, or press "Send my ' +
-            'setup link again" below.'
-        );
-      } else {
-        setLoginError(
-          e instanceof Error
-            ? e.message
-            : 'We could not sign you in with those details. Check them, or book a pickup to get started.'
-        );
+      /**
+       * Why this asks the server rather than reading the ledger.
+       *
+       * This used to search `readBookings()` for the address and, on a hit,
+       * announce that the booking had "no password set for it yet" — and then
+       * send the customer to "Send my setup link again". Every step of that is
+       * wrong for the customer it fired on most often.
+       *
+       * `readBookings()` is the whole ledger, not this person's account: it
+       * says a booking exists, which is not the same claim and cannot support
+       * one about credentials. So somebody who opened an account in the
+       * customer app, set a password there, and then mistyped it here was told
+       * their password did not exist. The one control that would have helped —
+       * "Forgotten it?" — is the one the message steered them away from, and
+       * the one it steered them *towards* is a documented no-op for an account
+       * that has a password: `/auth/resend-setup` deliberately does nothing and
+       * answers `{ ok: true }` anyway, so the promised email never comes and
+       * the loop has no exit.
+       *
+       * `/auth/status` is the only thing that knows, and it is the question the
+       * customer app has always asked before offering the same choice. Its note
+       * in `routes/auth.ts` records that this wrapper had no caller; it has one
+       * now, and the route's fate is tied to both surfaces rather than to the
+       * app alone.
+       */
+      const wrongCredentials = e instanceof ApiError && e.status === 401;
+
+      if (!wrongCredentials) {
+        // A 429, a 5xx or a dead connection. The server's own words, because
+        // none of these are anything the setup story would explain.
+        setLoginError(fallback);
+        return;
       }
+
+      let status: { exists: boolean; hasPassword: boolean } | null = null;
+      try {
+        status = await store.authStatus(inputIdentifier.trim());
+      } catch {
+        // Offline, or past the lookup limiter. Nothing is known, so nothing is
+        // claimed — the sign-in failure stands on its own.
+      }
+
+      if (status?.exists && !status.hasPassword) {
+        setLoginError(
+          'That contact has a booking but no password yet. Open the setup link in your ' +
+            'confirmation email, or press "Send my setup link again" below.'
+        );
+        return;
+      }
+
+      setLoginError(
+        status?.hasPassword
+          ? 'That password does not match the one on this account. Check it, or use ' +
+              '"Forgotten it?" above to set a new one.'
+          : fallback
+      );
     }
   };
 
@@ -943,8 +983,19 @@ export default function ClientPortal({
    * a setup link has been spent — so this is the only way back to a password
    * for a booking, and the sign-in card offers both side by side.
    *
-   * Says the same thing whatever the server found, for the reason the reset
-   * confirmation does.
+   * Says the same thing whatever the *booking* half of the server's answer was,
+   * for the reason the reset confirmation does. The one case it does not paper
+   * over is an account that already holds a password: `/auth/resend-setup`
+   * refuses those on purpose — a setup link for somebody who has credentials
+   * would be a way to mail an existing customer on demand — and it refuses them
+   * silently, with the same `{ ok: true }` it gives everybody. Announcing that a
+   * link is on its way is then simply false, and it is false for exactly the
+   * person pressing this button hardest: the one who cannot get in and has been
+   * told this is the way out. They are sent to Forgotten it? instead.
+   *
+   * No enumeration is given away that the caller did not bring: they typed this
+   * address into a sign-in form a moment ago, and `/auth/status` is the same
+   * question the customer app asks before offering the same two doors.
    */
   const handleResendSetupLink = async () => {
     const identifier = inputIdentifier.trim();
@@ -959,6 +1010,18 @@ export default function ClientPortal({
     setSetupSending(true);
 
     try {
+      // A failed lookup is not fatal: fall through to the request, which is
+      // what this did unconditionally before.
+      const status = await store.authStatus(identifier).catch(() => null);
+
+      if (status?.hasPassword) {
+        setLoginError(
+          'This contact already has a password, so a setup link cannot be sent for it. ' +
+            'Use "Forgotten it?" above to set a new one.'
+        );
+        return;
+      }
+
       await store.requestSetupLink(identifier);
       setSuccessMsg(
         `If ${identifier} has a booking with no password yet, a setup link is on its way — check your spam folder too.`
