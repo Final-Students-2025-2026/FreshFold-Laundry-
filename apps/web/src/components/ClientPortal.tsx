@@ -31,6 +31,7 @@ import {
   type Message,
   type SavedAddress,
 } from '@freshfold/core';
+import { failureMessage } from '@freshfold/core';
 import {
   X, Lock, Mail, User, LogOut, MapPin, Clock, ChevronRight,
   Check, Plus, Send, AlertTriangle, AlertCircle, Wallet, Receipt,
@@ -301,7 +302,7 @@ export default function ClientPortal({
       }
     } catch (err: any) {
       checkout.cancel();
-      setPaystackError(err.message || 'Error connecting to Paystack.');
+      setPaystackError(failureMessage(err, 'Error connecting to Paystack.'));
     } finally {
       setPaystackLoading(false);
     }
@@ -391,7 +392,7 @@ export default function ClientPortal({
       }
     } catch (err: any) {
       checkout.cancel();
-      setTopUpPaystackError(err.message || 'Error connecting to Paystack.');
+      setTopUpPaystackError(failureMessage(err, 'Error connecting to Paystack.'));
     } finally {
       setTopUpPaystackLoading(false);
     }
@@ -437,7 +438,7 @@ export default function ClientPortal({
         );
       }
     } catch (err: any) {
-      setTopUpPaystackError(err.message || 'Error verifying Paystack transaction.');
+      setTopUpPaystackError(failureMessage(err, 'Error verifying Paystack transaction.'));
     } finally {
       setTopUpPaystackLoading(false);
     }
@@ -845,7 +846,7 @@ export default function ClientPortal({
         return;
       }
 
-      setSetupError(e instanceof Error ? e.message : 'Could not create your credentials. Please try again.');
+      setSetupError(failureMessage(e, 'Could not create your credentials. Please try again.'));
     }
   };
 
@@ -887,9 +888,7 @@ export default function ClientPortal({
         );
       } else {
         setLoginError(
-          e instanceof Error
-            ? e.message
-            : 'We could not sign you in with those details. Check them, or book a pickup to get started.'
+          failureMessage(e, 'We could not sign you in with those details. Check them, or book a pickup to get started.')
         );
       }
     }
@@ -926,9 +925,7 @@ export default function ClientPortal({
       );
     } catch (error) {
       setLoginError(
-        error instanceof Error
-          ? error.message
-          : 'Could not reach FreshFold just now. Please try again shortly.'
+        failureMessage(error, 'Could not reach FreshFold just now. Please try again shortly.')
       );
     } finally {
       setResetSending(false);
@@ -965,9 +962,7 @@ export default function ClientPortal({
       );
     } catch (error) {
       setLoginError(
-        error instanceof Error
-          ? error.message
-          : 'Could not reach FreshFold just now. Please try again shortly.'
+        failureMessage(error, 'Could not reach FreshFold just now. Please try again shortly.')
       );
     } finally {
       setSetupSending(false);
@@ -990,7 +985,7 @@ export default function ClientPortal({
       setVerifyNotice('Sent. Check your inbox — and your spam folder.');
     } catch (error) {
       setVerifyNotice(
-        error instanceof Error ? error.message : 'Could not send the link. Try again shortly.'
+        failureMessage(error, 'Could not send the link. Try again shortly.')
       );
     } finally {
       setVerifySending(false);

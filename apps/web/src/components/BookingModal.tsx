@@ -41,7 +41,7 @@ import {
   type Coords,
   type UserAccount,
 } from '@freshfold/core';
-import { ApiError } from '@freshfold/core';
+import { failureMessage, ApiError } from '@freshfold/core';
 import { Booking } from '../types';
 import * as store from '../services/store';
 import { BOOKABLE_SERVICE_ITEMS } from '../data';
@@ -429,7 +429,7 @@ export default function BookingModal({
       // Nothing to pay for, so the window that was held for it goes away rather
       // than sitting there saying "Opening the Paystack checkout…" forever.
       checkout.cancel();
-      setPaystackError(err.message || 'Error connecting to Paystack payment gateway.');
+      setPaystackError(failureMessage(err, 'Error connecting to Paystack payment gateway.'));
     } finally {
       setPaystackLoading(false);
     }
@@ -469,7 +469,7 @@ export default function BookingModal({
     } catch (err: any) {
       // Surfaced on the panel either way — it is the one outcome the customer
       // cannot act on without being told.
-      setPaystackError(err.message || 'Error verifying Paystack payment.');
+      setPaystackError(failureMessage(err, 'Error verifying Paystack payment.'));
     } finally {
       setPaystackLoading(false);
     }

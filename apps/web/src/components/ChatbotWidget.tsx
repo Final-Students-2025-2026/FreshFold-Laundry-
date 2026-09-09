@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { MessageSquare, X, Send, User, AlertCircle, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useIntent } from '../intent';
+import { failureMessage } from '@freshfold/core';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -138,7 +139,7 @@ export default function ChatbotWidget({ activeSection, onOpenBooking }: ChatbotW
     } catch (err: any) {
       console.error('Chatbot API Error:', err);
       setErrorMessage(
-        err.message || 'We could not reach the shop just then. Try again in a moment.'
+        failureMessage(err, 'We could not reach the shop just then. Try again in a moment.')
       );
     } finally {
       setIsLoading(false);

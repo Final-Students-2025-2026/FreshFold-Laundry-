@@ -9,6 +9,7 @@ import {
   todayIso,
   type Booking,
 } from '@freshfold/core';
+import { failureMessage } from '@freshfold/core';
 import * as store from '../services/store';
 import { FIELD } from './ui/portal';
 import { windowLabel } from './ui/slots';
@@ -147,9 +148,7 @@ export default function RescheduleDrawer({ booking, onClose, onMoved }: Reschedu
       // The server writes these for the customer — "that window filled up",
       // "your courier is already on the way" — so they are shown as they arrive.
       setError(
-        failure instanceof Error && failure.message
-          ? failure.message
-          : 'That could not be moved just now. Try again.'
+        failureMessage(failure, 'That could not be moved just now. Try again.')
       );
       setBusy(false);
     }

@@ -22,7 +22,7 @@
 
 import { useCallback, useState } from 'react';
 import { Tag, TicketPercent } from 'lucide-react';
-import { promoLabel, type PromoCode } from '@freshfold/core';
+import { failureMessage, promoLabel, type PromoCode } from '@freshfold/core';
 import * as store from '../../services/store';
 import PaneHeader, { ResourceBanner } from './PaneHeader';
 import { useDeskResource } from './useDeskResource';
@@ -131,7 +131,7 @@ export default function OffersPanel({
       load();
       onSaved(`${draft.code.toUpperCase()} saved`);
     } catch (e) {
-      const sentence = e instanceof Error ? e.message : 'That code could not be saved.';
+      const sentence = failureMessage(e, 'That code could not be saved.');
       setError(sentence);
       onFailed(sentence);
     } finally {

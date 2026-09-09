@@ -39,6 +39,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronRight, MessageSquare, Send } from 'lucide-react';
 import type { Message } from '@freshfold/core';
+import { failureMessage } from '@freshfold/core';
 import type { Booking } from '../../types';
 import * as store from '../../services/store';
 import OrderRef from './OrderRef';
@@ -219,7 +220,7 @@ export default function MessagesPanel({
       onReplied(`${orderId} — replied`);
     } catch (e) {
       const sentence =
-        e instanceof Error ? e.message : 'The reply was not sent. Nobody has read it.';
+        failureMessage(e, 'The reply was not sent. Nobody has read it.');
       // Both, deliberately. The toast is what a supervisor who has already
       // looked away will see; the inline error keeps the reason next to the
       // draft that is still sitting in the box, unsent.
